@@ -21,7 +21,7 @@
   <div id="err" class="bad" style="font-size:.78rem;font-weight:700;min-height:1.2em"></div>
   <button class="btn pri big" type="submit" hidden>Create account</button>
   <div class="foot" id="alt" style="margin-bottom:6px">Already have an account? <a id="la" href="login.html">Log in</a></div>
-  <div class="foot">Version 2.16.9</div>
+  <div class="foot">Version 2.16.11</div>
   <div id="gwrap" hidden><div class="or" id="orl"><span>or</span></div><div class="gbox"><div id="gbtn" class="gbtn"></div><div id="gblock" class="gblock" hidden></div></div></div>
 </form>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -85,6 +85,10 @@
   };
   try{cfg=await api('/api/config')}catch(e){}
   setMode('signup');
+  const pend=sessionStorage.getItem('cc_gcred');   // arrived from "log in / sign up with Google" on the login page with a new Google account
+  if(pend){sessionStorage.removeItem('cc_gcred');
+    try{const v=await api('/api/google','POST',{credential:pend,mode:'verify'});gCred=pend;FN.value=v.firstName||'';LN.value=v.lastName||'';$('gem').textContent=v.email;layout();(FN.value?U:FN).focus()}
+    catch(x){err.textContent=x.status?x.message:'Cannot reach the server. Check your connection.'}}
   if(!cfg.googleClientId)return;
   const start=()=>{
     if(!window.google||!google.accounts)return setTimeout(start,150);
