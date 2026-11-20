@@ -97,9 +97,9 @@ body.cw-drag{user-select:none;-webkit-user-select:none;cursor:grabbing}
 /* ---- phones: bottom sheet, like CrewCamp's dialogs ---- */
 @media(max-width:700px){
   .cw{--cw-h:min(78dvh,600px)}
-  .cw-win,.cw-win.moved,.cw-mem{left:0;right:0;bottom:0;top:auto;width:auto;height:var(--cw-h);border-radius:22px 22px 0 0}
+  .cw-win,.cw-win.moved,.cw-mem{left:0;right:0;bottom:calc(46px + var(--safe-b));top:auto;width:auto;height:var(--cw-h);border-radius:22px 22px 14px 14px}
   .cw-mem{z-index:46;padding:14px 8px calc(12px + var(--safe-b))}
-  .cw-form{padding-bottom:calc(10px + var(--safe-b))}
+  .cw-form{padding-bottom:10px}
   .cw-head{cursor:default;touch-action:auto}
   .cw-form textarea{font-size:16px}
   .cw-act{top:-12px}

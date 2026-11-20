@@ -121,3 +121,5 @@ See README ("Profile posts"). New: `posts.js`, `posts.css`; changed: `api.mjs` (
 - Optional env `VIDEO_HOST` (default `meet.jit.si`) to point at another Jitsi server.
 
 # 2.16.2 – mobile: the ☰ menu tab no longer sits on top of an open chat / private message window.
+
+# 2.16.3 – phones: chat/private-message sheets stop 46px above the bottom so Netlify's 'Powered by' badge can't cover the composer. Scripts/styles are revalidated on every load (was cached up to a day), so every user gets new buttons such as 📹 Call right after a deploy.

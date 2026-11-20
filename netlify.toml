@@ -23,16 +23,16 @@
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
     Strict-Transport-Security = "max-age=31536000"
 
-# Static assets: cached 5 min, then served instantly while refreshing in the background (fewer requests, instant page loads)
+# Scripts/styles are re-checked on every load (cheap 304 via ETag) so everybody always gets the newest version; images are cached longer
 [[headers]]
   for = "/*.js"
   [headers.values]
-    Cache-Control = "public, max-age=300, stale-while-revalidate=86400"
+    Cache-Control = "public, max-age=0, must-revalidate"
 
 [[headers]]
   for = "/*.css"
   [headers.values]
-    Cache-Control = "public, max-age=300, stale-while-revalidate=86400"
+    Cache-Control = "public, max-age=0, must-revalidate"
 
 [[headers]]
   for = "/*.svg"
