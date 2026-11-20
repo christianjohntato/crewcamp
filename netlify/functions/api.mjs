@@ -274,12 +274,14 @@ export default async (req) => {
       if (!cid) throw H('Google sign-in is not set up yet (GOOGLE_CLIENT_ID is missing).', 503);
       const cred = String(body.credential || '');
       if (!/^[\w-]+\.[\w-]+\.[\w-]+$/.test(cred) || cred.length > 4096) throw H('Invalid Google sign-in.', 401);
-      const su = body.mode === 'signup';   // sign up = the person chose a display name, username and password first; log in = existing accounts only
+      const vf = body.mode === 'verify', su = body.mode === 'signup';   // verify = step 1 of sign up (Google button first, nothing created); signup = step 2 with first/last name, user ID and password; otherwise log in (existing accounts only)
       let sd = null;
       if (su) {
-        sd = { nm: String(body.name || '').trim().slice(0, 60), un: String(body.username || '').trim().toLowerCase(), pw: String(body.password || '') };
-        if (!sd.nm) throw H('Enter a display name.');
-        if (!UN.test(sd.un)) throw H('Username: 3–30 letters, numbers, . _ -');
+        const fn = String(body.firstName || '').trim().slice(0, 30), ln = String(body.lastName || '').trim().slice(0, 30);
+        sd = { fn, ln, nm: (fn + ' ' + ln).trim(), un: String(body.username || '').trim().toLowerCase(), pw: String(body.password || '') };
+        if (!fn) throw H('Enter your first name.');
+        if (!ln) throw H('Enter your last name.');
+        if (!UN.test(sd.un)) throw H('User ID: 3–30 letters, numbers, . _ -');
         if (sd.pw.length < 6) throw H('Password must be at least 6 characters.');
       }
       let g;
@@ -293,6 +295,11 @@ export default async (req) => {
       const email = String(g.email).trim().toLowerCase();
       const allowed = String(process.env.GOOGLE_ALLOWED_DOMAINS || '').toLowerCase().split(/[\s,]+/).filter(Boolean);   // optional: e.g. "mycompany.com"
       if (allowed.length && !allowed.includes(email.split('@')[1])) throw H('This Google account is not allowed to join.', 403);
+      if (vf) {   // step 1: the Google account is real; tell the page its name + whether it already has an account. Nothing is created yet.
+        const ex = (await getUsers(st)).find(x => x.googleSub === g.sub || x.email === email);
+        if (ex) throw H('This Google account already has an account. Tap Log in instead.', 409);
+        return J({ email, firstName: String(g.given_name || '').slice(0, 30), lastName: String(g.family_name || '').slice(0, 30) });
+      }
       let u, created = false;
       await mutUsers(st, list => {
         u = list.find(x => x.googleSub === g.sub) || list.find(x => x.email === email);
@@ -304,9 +311,9 @@ export default async (req) => {
         }
         if (!su) throw H('No account for this Google account yet. Tap Sign up first.', 404);
         if (list.length >= 500) throw H('This server is full.');
-        if (list.some(x => x.username === sd.un)) throw H('Username already exists.');
+        if (list.some(x => x.username === sd.un)) throw H('That user ID is already taken.');
         const salt = randomBytes(8).toString('hex');
-        u = { id: 'u_' + randomBytes(6).toString('hex'), username: sd.un, name: sd.nm, role: 'staff', active: true, salt, hash: hp(sd.pw, salt), created: today(), hostIds: [], tagIds: [], noDef: true, email, googleSub: g.sub };   // new accounts belong to NO server until they use a passkey / link   // the password they chose also works for the normal Log in form
+        u = { id: 'u_' + randomBytes(6).toString('hex'), username: sd.un, name: sd.nm, firstName: sd.fn, lastName: sd.ln, role: 'staff', active: true, salt, hash: hp(sd.pw, salt), created: today(), hostIds: [], tagIds: [], noDef: true, email, googleSub: g.sub };   // new accounts belong to NO server until they use a passkey / link   // the password they chose also works for the normal Log in form
         list.push(u); created = true;
       });
       const token = randomBytes(24).toString('hex');
