@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded',()=>applyTheme(localStorage.getItem
 
 async function api(path,method='GET',body,server){   // server (optional) = act inside that server for this one call
   const h={'Content-Type':'application/json'},sv=server||localStorage.getItem('stb_sv');
-  if(sv&&sv!=='cepalco'&&!/^\/api\/(login|logout|servers)/.test(path))h['X-Server']=sv;   // active server (default CEPALCO sends nothing)
+  if(sv&&sv!=='cepalco'&&!/^\/api\/(login|logout|servers|google|config)/.test(path))h['X-Server']=sv;   // active server (default CEPALCO sends nothing)
   if(method!=='GET'&&/^\/api\/(admin\/)?servers/.test(path))sessionStorage.removeItem('stb_svl');   // any server change invalidates the cached list
   const r=await fetch(path,{method,headers:h,body:body?JSON.stringify(body):undefined,credentials:'same-origin'});
   let d={};try{d=await r.json()}catch(e){}

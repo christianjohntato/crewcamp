@@ -567,6 +567,34 @@ console.log('Server rail: unread chat badges');
   check('unread: the count is capped at 99', await (async () => { for (let i = 0; i < 3; i++) await SS('/chat/send' + bq, 'POST', { ch: 'general', text: 'm' + i }); return (await N('/servers/unread', 'POST', { seen: { [BID]: 'general:0' } })).d.servers[BID].unread <= 99; })());
 }
 
+// ---- Google sign-in (Google's tokeninfo endpoint is mocked) ----
+{
+  const realFetch = globalThis.fetch; let tok = {};
+  globalThis.fetch = async u => String(u).startsWith('https://oauth2.googleapis.com/tokeninfo') ? { ok: !!tok, json: async () => tok } : realFetch(u);
+  const jwt = 'aaa.bbb.ccc', good = { aud: 'cid-123', iss: 'https://accounts.google.com', sub: 'g-1', exp: String(Math.floor(Date.now() / 1000) + 600), email: 'Jane.Doe@example.com', email_verified: 'true', name: 'Jane Doe' };
+  const B = browser();
+  delete process.env.GOOGLE_CLIENT_ID;
+  check('google: /config reports no client ID when unset', (await B('/config')).d.googleClientId === '');
+  check('google: refused (503) when GOOGLE_CLIENT_ID is not set', (await B('/google', 'POST', { credential: jwt })).status === 503);
+  process.env.GOOGLE_CLIENT_ID = 'cid-123';
+  check('google: /config exposes the client ID', (await B('/config')).d.googleClientId === 'cid-123');
+  check('google: junk credential rejected', (await B('/google', 'POST', { credential: 'nope' })).status === 401);
+  tok = { ...good, aud: 'someone-else' }; check('google: token for another app rejected', (await B('/google', 'POST', { credential: jwt })).status === 401);
+  tok = { ...good, email_verified: 'false' }; check('google: unverified email rejected', (await B('/google', 'POST', { credential: jwt })).status === 401);
+  tok = { ...good, exp: '1' }; check('google: expired token rejected', (await B('/google', 'POST', { credential: jwt })).status === 401);
+  tok = null; check('google: token Google does not recognise is rejected', (await B('/google', 'POST', { credential: jwt })).status === 401);
+  tok = good; const r1 = await B('/google', 'POST', { credential: jwt });
+  check('google: first sign-in creates a staff account and a session', r1.status === 201 && r1.d.created && r1.d.user.role === 'staff' && r1.d.user.username === 'jane.doe' && (await B('/me')).status === 200);
+  const B2 = browser(); const r2 = await B2('/google', 'POST', { credential: jwt });
+  check('google: second sign-in logs into the same account', r2.status === 200 && !r2.d.created && r2.d.user.id === r1.d.user.id);
+  check('google: the account cannot be entered with a password', (await browser()('/login', 'POST', { username: 'jane.doe', password: '' })).status === 400);
+  tok = { ...good, sub: 'g-2', email: 'jane.doe@other.com' }; const r3 = await browser()('/google', 'POST', { credential: jwt });
+  check('google: a different person with the same email name gets a unique username', r3.status === 201 && r3.d.user.username === 'jane.doe2');
+  process.env.GOOGLE_ALLOWED_DOMAINS = 'example.com'; tok = { ...good, sub: 'g-3', email: 'x@evil.com' };
+  check('google: GOOGLE_ALLOWED_DOMAINS blocks other domains', (await browser()('/google', 'POST', { credential: jwt })).status === 403);
+  delete process.env.GOOGLE_ALLOWED_DOMAINS; delete process.env.GOOGLE_CLIENT_ID; globalThis.fetch = realFetch;
+}
+
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(failed ? `\n${failed} check(s) FAILED` : '\nAll checks passed');
 process.exit(failed ? 1 : 0);

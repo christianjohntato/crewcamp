@@ -400,3 +400,8 @@ body.login{display:flex;flex-direction:column;align-items:center;justify-content
 .wm{font-family:'Fredoka','Quicksand',system-ui,sans-serif;font-weight:700;letter-spacing:.01em;color:#182c48;-webkit-text-stroke:.09em #4aa3df;paint-order:stroke fill}
 @media (prefers-color-scheme:dark){.wm{color:#e8f1fb;-webkit-text-stroke:.09em #2f6aa8}}
 body[data-mode] .wm{}
+
+/* Google sign-in block on the login card */
+.login .or{display:flex;align-items:center;gap:10px;margin:14px 0 12px;font-size:.75rem;font-weight:700;opacity:.6;text-transform:uppercase;letter-spacing:.06em}
+.login .or::before,.login .or::after{content:"";flex:1;height:1px;background:currentColor;opacity:.3}
+.login .gbtn{display:flex;justify-content:center;min-height:44px}

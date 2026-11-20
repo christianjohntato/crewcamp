@@ -258,6 +258,48 @@ export default async (req) => {
       return J({ user: pub(u, us) }, 200, { 'Set-Cookie': `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_MS / 1000}` });
     }
 
+    // ----- Google sign-in config (public: the client ID is not a secret) -----
+    if (path === '/config' && m === 'GET') return J({ googleClientId: process.env.GOOGLE_CLIENT_ID || '' });
+
+    // ----- Google sign up / sign in (public) -----
+    // The browser sends the ID token from Google Identity Services; Google's tokeninfo endpoint verifies its signature and expiry,
+    // and we check it was issued for OUR client ID and that the email is verified. First time = account created, after that = log in.
+    if (path === '/google' && m === 'POST') {
+      const cid = process.env.GOOGLE_CLIENT_ID;
+      if (!cid) throw H('Google sign-in is not set up yet (GOOGLE_CLIENT_ID is missing).', 503);
+      const cred = String(body.credential || '');
+      if (!/^[\w-]+\.[\w-]+\.[\w-]+$/.test(cred) || cred.length > 4096) throw H('Invalid Google sign-in.', 401);
+      let g;
+      try {
+        const r = await fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(cred));
+        g = r.ok ? await r.json() : null;
+      } catch { throw H('Could not reach Google. Try again.', 502); }
+      const now = Date.now();
+      if (!g || g.aud !== cid || !['accounts.google.com', 'https://accounts.google.com'].includes(g.iss) || !g.sub || Number(g.exp) * 1000 < now || String(g.email_verified) !== 'true' || !g.email)
+        throw H('Google sign-in failed. Please try again.', 401);
+      const email = String(g.email).trim().toLowerCase();
+      const allowed = String(process.env.GOOGLE_ALLOWED_DOMAINS || '').toLowerCase().split(/[\s,]+/).filter(Boolean);   // optional: e.g. "mycompany.com"
+      if (allowed.length && !allowed.includes(email.split('@')[1])) throw H('This Google account is not allowed to join.', 403);
+      let u, created = false;
+      await mutUsers(st, list => {
+        u = list.find(x => x.googleSub === g.sub) || list.find(x => x.email === email);
+        if (u) {
+          if (!u.active) throw H('This account is disabled.', 401);
+          if (!u.googleSub) u.googleSub = g.sub;
+          return;
+        }
+        if (list.length >= 500) throw H('This server is full.');
+        let base = (email.split('@')[0].toLowerCase().replace(/[^a-z0-9_.-]/g, '').slice(0, 24) || 'user').padEnd(3, '0'), un = base;
+        for (let i = 2; list.some(x => x.username === un); i++) un = base.slice(0, 26) + i;
+        const salt = randomBytes(8).toString('hex');
+        u = { id: 'u_' + randomBytes(6).toString('hex'), username: un, name: String(g.name || '').trim().slice(0, 60) || un, role: 'staff', active: true, salt, hash: hp(randomBytes(24).toString('hex'), salt), created: today(), hostIds: [], tagIds: [], email, googleSub: g.sub };   // random password: this account signs in with Google
+        list.push(u); created = true;
+      });
+      const token = randomBytes(24).toString('hex');
+      await st.setJSON('sess:' + token, { id: u.id, pv: u.pv || 0, exp: now + SESSION_MS });
+      return J({ user: pub(u, await getUsers(st)), created }, created ? 201 : 200, { 'Set-Cookie': `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_MS / 1000}` });
+    }
+
     // ----- session cookie -----
     const ck = (req.headers.get('cookie') || '').split(/;\s*/).find(c => c.startsWith(COOKIE + '='));
     const token = ck ? ck.slice(COOKIE.length + 1) : '';

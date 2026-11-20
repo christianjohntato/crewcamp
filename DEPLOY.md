@@ -40,3 +40,12 @@ npm test        # runs the full check suite, no network needed
 | Changed the env password but admin still uses the old one | The variable only seeds the first admin; change the password inside the app. |
 
 Docs: `README.md` (features/roles), `SERVERS.md` (servers feature), `CHANGES.md` (v2.6 changes).
+
+## Google sign up / sign in
+
+1. Google Cloud Console → APIs & Services → Credentials → **Create credentials → OAuth client ID → Web application**.
+2. Under **Authorized JavaScript origins** add `https://crewcamp.netlify.app` (and `http://localhost:8888` for `netlify dev`). No redirect URI is needed.
+3. In Netlify → Site configuration → Environment variables add `GOOGLE_CLIENT_ID` (the client ID from step 1), then redeploy.
+4. Optional: `GOOGLE_ALLOWED_DOMAINS=yourcompany.com` limits who may join (comma-separated). Without it, **any** Google account can sign up as Staff.
+
+Until `GOOGLE_CLIENT_ID` is set, the login page shows only the username/password form. New Google accounts are created as Staff; existing username/password accounts keep working (the admin login is unchanged).
