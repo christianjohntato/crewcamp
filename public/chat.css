@@ -148,3 +148,4 @@ body.cw-drag{user-select:none;-webkit-user-select:none;cursor:grabbing}
 .cw-svo{display:flex;align-items:center;gap:8px;width:100%;min-height:36px;padding:3px 8px 3px 4px;border:0;border-radius:10px;background:none;color:inherit;font:inherit;font-weight:700;font-size:.8rem;text-align:left;cursor:pointer}
 .cw-svo:hover{background:var(--soft)}.cw-svo.on{background:var(--soft);box-shadow:inset 3px 0 0 var(--acc)}
 .cw-pill .cw-pn{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cw-ib.cw-call,#cwCall,.cwf-wh [data-a=call]{width:auto;padding:0 10px;border-radius:99px;gap:4px;white-space:nowrap}

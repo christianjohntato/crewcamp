@@ -119,3 +119,5 @@ See README ("Profile posts"). New: `posts.js`, `posts.css`; changed: `api.mjs` (
 # 2.16.0 – free video calls
 - 📹 button in the group-chat header (this channel) and in every private-message window (that friend). `GET /api/call?ch=|dm=` checks access (channel visible to you / you are friends) and returns a private Jitsi room URL (`CrewCamp-<HMAC>`, derived from a server-side secret, so it can't be guessed); the app opens it in a new tab. No video traffic touches Netlify; no cost, no backend state beyond one secret.
 - Optional env `VIDEO_HOST` (default `meet.jit.si`) to point at another Jitsi server.
+
+# 2.16.2 – mobile: the ☰ menu tab no longer sits on top of an open chat / private message window.

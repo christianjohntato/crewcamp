@@ -47,7 +47,7 @@
     <div class="cw-title"><b id="cwTitle"># general</b><small id="cwSub">Connecting…</small></div>
     <button class="cw-ib" id="cwMem" type="button" aria-label="Who is online" aria-expanded="false" aria-controls="cwMembers" title="Who is online">👥</button>
     <button class="cw-ib cw-frb" id="cwFrBtn" type="button" aria-label="Friends and private messages" title="Friends &amp; private messages">✉️<em class="cw-badge" id="cwFrB" hidden></em></button>
-    <button class="cw-ib" id="cwCall" type="button" aria-label="Start a video call in this channel" title="Video call (opens in a new tab)">📹</button>
+    <button class="cw-ib" id="cwCall" type="button" aria-label="Start a video call in this channel" title="Video call (opens in a new tab)">📹 <span style="font-size:.7rem;font-weight:800">Call</span></button>
     <button class="cw-ib" id="cwMin" type="button" aria-label="Minimize chat" title="Minimize">—</button>
   </header>
   <div class="cw-svbar"><button class="cw-svchip" id="cwSv" type="button" aria-haspopup="listbox" aria-expanded="false" title="Server this chat belongs to"></button><div class="cw-svmenu" id="cwSvMenu" role="listbox" aria-label="Choose a server's chat" hidden></div></div>

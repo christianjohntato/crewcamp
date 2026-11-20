@@ -47,6 +47,7 @@ body.hasrail{padding-left:72px}
  #svRail.open{transform:none}
  #svTab{font-family:Quicksand,system-ui,sans-serif;display:grid;position:fixed;left:0;top:50%;z-index:59;width:18px;height:56px;font-size:.8rem;padding:0;place-items:center;border:1px solid var(--bd,#ddd);border-left:0;border-radius:0 12px 12px 0;background:var(--panel,#fff);color:var(--ink,#111);cursor:pointer;box-shadow:var(--sh,none)}
 }
+@media(max-width:700px){body:has(.cw-win:not([hidden])) #svTab,body:has(.cwf-win) #svTab,body:has(.cwf-panel) #svTab{display:none}}   /* the menu tab must not sit on top of an open chat / private message on phones */
 @media(prefers-reduced-motion:reduce){#svRail,.svi i{transition:none}}
 #svNp{position:fixed;left:84px;bottom:12px;z-index:70;width:380px;max-width:calc(100vw - 96px);max-height:min(560px,80dvh);display:flex;flex-direction:column;background:var(--panel,#fff);color:var(--ink,#111);border:1px solid var(--bd,#ddd);border-radius:18px;box-shadow:var(--sh,none),0 12px 40px rgba(0,0,0,.18);overflow:hidden;font-family:Quicksand,system-ui,sans-serif}
 .th-cepalco #svNp{border-width:3px}
