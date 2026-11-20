@@ -309,7 +309,7 @@ export default async (req) => {
           if (!u.googleSub) u.googleSub = g.sub;
           return;
         }
-        if (!su) throw H('No account for this Google account yet. Tap Sign up first.', 404);
+        if (!su) throw H('No account for this Google account yet. Tap Register first.', 404);
         if (list.length >= 500) throw H('This server is full.');
         if (list.some(x => x.username === sd.un)) throw H('That user ID is already taken.');
         const salt = randomBytes(8).toString('hex');

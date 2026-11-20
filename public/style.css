@@ -409,7 +409,8 @@ body[data-mode] .wm{}
 /* Log in / Sign up switch + the cover that keeps the Google button inactive until the sign-up form is filled in */
 .login .tabs{display:flex;gap:4px;padding:4px;margin:0 0 12px;border-radius:99px;background:rgba(127,127,127,.14)}
 .login .tabs button{flex:1;border:0;border-radius:99px;padding:8px 10px;font:inherit;font-weight:700;font-size:.85rem;color:inherit;background:transparent;opacity:.65;cursor:pointer}
-.login .tabs button.on{background:var(--acc,#4a7fc4);color:#fff;opacity:1}
+.login .tabs a{flex:1;text-align:center;text-decoration:none;border-radius:99px;padding:8px 10px;font-weight:700;font-size:.85rem;color:inherit;opacity:.65}
+.login .tabs button.on,.login .tabs a.on{background:var(--acc,#4a7fc4);color:#fff;opacity:1}
 .login .gbox{position:relative}
 .login .gblock{position:absolute;inset:0;z-index:2;cursor:not-allowed;border-radius:99px;background:rgba(255,255,255,.55)}
 body:not(.th-white) .login .gblock,.login .gblock{backdrop-filter:grayscale(1)}

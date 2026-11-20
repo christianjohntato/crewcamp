@@ -159,7 +159,7 @@ function infoDlg(){
   <div class="err"></div><div class="r"><button class="btn" id="svX">Close</button></div>`);
   const $=q=>d.querySelector(q);$('#svX').onclick=close;
   if($('#svKeys')){
-    const P=[['admin','👑 Head','Can manage the whole server and picks his Supervisors'],['host','🧭 Supervisor','Can assign tasks and picks his own Staff'],['staff','🙋 Staff','Sees and completes assigned tasks']],link=c=>location.origin+'/login.html?join='+c;
+    const P=[['admin','👑 Head','Can manage the whole server and picks his Supervisors'],['host','🧭 Supervisor','Can assign tasks and picks his own Staff'],['staff','🙋 Staff','Sees and completes assigned tasks']],link=c=>location.origin+'/register.html?join='+c;
     const paint=()=>{const cs=s.codes||{staff:s.code||''};$('#svKeys').innerHTML=P.map(([r,n,t])=>`<div class="kb"><b>${n}</b><small>${t}</small>${cs[r]?`<div class="code">${esc(cs[r])}</div><div class="r"><button class="btn" data-k="cp" data-r="${r}">Copy code</button><button class="btn" data-k="ln" data-r="${r}">🔗 Copy link</button><button class="btn" data-k="rs" data-r="${r}">New</button>${def||r!=='staff'?`<button class="btn" data-k="off" data-r="${r}">Off</button>`:''}</div>`:`<div class="r"><button class="btn" data-k="rs" data-r="${r}">Create ${n.split(' ')[1]} passkey</button></div>`}</div>`).join('')};
     paint();
     $('#svKeys').onclick=e=>{const b=e.target.closest('[data-k]');if(!b)return;const r=b.dataset.r,cs=s.codes=s.codes||{staff:s.code||''};
