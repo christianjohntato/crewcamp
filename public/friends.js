@@ -109,7 +109,7 @@
   function renderList() {
     if (!F.panel) return;
     renderTabs();
-    const sig = JSON.stringify([F.tab, F.q, F.loaded, F.friends.map(f => [f.id, f.name, f.avatarAt, f.online, f.typing, f.last, f.prev, f.pm, unreadOf(f)]), F.reqIn.map(u => u.id), F.reqOut, F.others && F.others.map(u => [u.id, u.state])]);
+    const sig = JSON.stringify([F.tab, F.q, F.loaded, F.friends.map(f => [f.id, f.name, f.avatarAt, f.online, f.typing, f.last, f.prev, f.pm, unreadOf(f), f.call ? f.call.n : 0]), F.reqIn.map(u => u.id), F.reqOut, F.others && F.others.map(u => [u.id, u.state])]);
     if (sig === listSig) return; listSig = sig;   // untouched list = no rebuild, so a click is never lost to a re-render
     const q = F.q.trim().toLowerCase(), match = u => !q || u.name.toLowerCase().includes(q);
     const frag = document.createDocumentFragment();
@@ -119,7 +119,7 @@
       if (!F.loaded) empty('Loading…');
       else if (!l.length) empty(F.friends.length ? 'No friend matches that name.' : 'No friends yet. Open "Find people" to add teammates.');
       l.forEach(f => {
-        const un = unreadOf(f), r = row(f, { online: f.online, sub: f.typing ? 'typing…' : f.prev ? (f.pm ? 'You: ' : '') + f.prev : (f.online ? 'Online' : ''), badge: un || '' });
+        const un = unreadOf(f), r = row(f, { online: f.online, sub: f.typing ? 'typing…' : f.call ? '📹 Call in progress' : f.prev ? (f.pm ? 'You: ' : '') + f.prev : (f.online ? 'Online' : ''), badge: un || '' });
         r.classList.toggle('unread', !!un); r.title = 'Send a private message';
         r.onclick = () => openWin(f.id);
         frag.append(r);
@@ -177,6 +177,7 @@
     const el = document.createElement('section'); el.className = 'cwf-win'; el.setAttribute('role', 'dialog');
     el.innerHTML = `
 <header class="cwf-wh" tabindex="0" role="button" title="Click to minimize or restore"><span class="cwf-wav"></span><div class="cwf-wt"><b></b><small></small></div><em class="cw-badge" hidden></em><button class="cw-ib" type="button" data-a="call" aria-label="Video call" title="Video call (opens in a new tab)">📹 <span style="font-size:.7rem;font-weight:800">Call</span></button><button class="cw-ib" type="button" data-a="min" aria-label="Minimize" title="Minimize">—</button><button class="cw-ib" type="button" data-a="x" aria-label="Close" title="Close">×</button></header>
+<div class="cw-callbar" role="status" hidden></div>
 <div class="cwf-log" role="log" aria-live="polite" tabindex="0"></div>
 <div class="cw-typing"></div>
 <div class="cw-edit" hidden><span>✎ Editing your message</span><button type="button" data-a="editx">Cancel</button></div>
@@ -222,7 +223,7 @@
         const a = b.dataset.a, row = e.target.closest('.cwf-m');
         if (a === 'x') return closeWin(id);
         if (a === 'min') return toggleMin(id);
-        if (a === 'call') return startCall('dm=' + encodeURIComponent(id));
+        if (a === 'call' || a === 'joincall') { const f = byId(id); return startCall('dm=' + encodeURIComponent(id), undefined, f && f.call && f.call.since); }
         if (a === 'editx') { stopEdit(id); w.ta.value = ''; autosize(); return; }
         if (a === 'edit' && row) return startEdit(id, row.dataset.id);
         if (a === 'del' && row) return delMsg(id, row.dataset.id);
@@ -260,6 +261,11 @@
     w.el.querySelector('.cwf-wt small').innerHTML = f.online ? '<i class="cw-dot"></i>Online' : 'Offline';
     const bd = w.el.querySelector('.cwf-wh .cw-badge'); bd.hidden = !(min && un); bd.textContent = un > 99 ? '99+' : un;
     const ty = w.el.querySelector('.cw-typing'); if (!ty.classList.contains('err')) ty.textContent = f.typing ? f.name.split(' ')[0] + ' is typing…' : '';
+    const cb = w.el.querySelector('.cw-callbar'), k = f.call, cs = k ? [k.n, k.since, k.me].join() : '';
+    if (cb.dataset.k !== cs) {   // small "Call in progress · since 3:42 PM · 2 in call  [Join]" line
+      cb.dataset.k = cs; cb.hidden = !k;
+      cb.innerHTML = k ? `<i class="cw-cdot" aria-hidden="true"></i><span><b>Call in progress</b> · since ${tf.format(k.since)} · ${k.n} in call</span>` + (k.me ? '<em>you’re in</em>' : '<button type="button" class="cw-cjoin" data-a="joincall">Join</button>') : '';
+    }
     if (min) return;
     const msgs = F.msgs[id], sig = msgs ? msgs.map(m => m.id + (m.edited ? 'e' : '') + m.text.length).join('|') : 'x';
     if (sig === w.sig && !stick) return;

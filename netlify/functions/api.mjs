@@ -36,6 +36,7 @@ const COOKIE = 'stb_sess', SESSION_MS = 30 * 864e5;
 const AVATAR_COOLDOWN = 15 * 864e5, AVATAR_MAX = 250 * 1024;   // profile picture: one change per 15 days, <= 250 KB
 const MAX_FAILS = 5, LOCK_MS = 15 * 60 * 1000;
 const CH_ID = /^[a-z0-9-]{1,24}$/, CHAT_MAX = 300, CHAT_SHOW = 80, MAX_CH = 6;   // group chat: channel slug, messages kept per channel, messages sent per poll, channel cap
+const CALL_MS = 90e3;   // "in a call" = my browser said so in one of its polls in the last 90 s (a background tab polls at least every 25 s while a call is open)
 const ONLINE_MS = 75e3, TYPING_MS = 7e3;                                          // "online" = polled in the last 75 s (a background tab polls every 60 s); "typing" = typed in the last 7 s
 const ROLE_ORDER = { admin: 0, host: 1, staff: 2 };
 const MAX_TAGS = 20, TAG_ID = /^[a-z0-9-]{1,18}$/;   // custom roles ("tags"): id = slug of the name; each one owns a private chat channel called <id>-chat (<= 23 chars)
@@ -836,8 +837,13 @@ export default async (req) => {
       const fids = fr.f.filter(id => allUs.some(u => u.id === id && u.active)).slice(0, MAX_FR);                  // my friends (active accounts only)
       const dmOpen = uniq(String(q.get('dm') || '').split(',')).filter(id => fids.includes(id)).slice(0, DM_OPEN);   // private conversations the browser has open right now
       const dmTy = fids.includes(q.get('dtyping')) ? q.get('dtyping') : null;
-      const mePres = { t: now, ty: ty ? { c: ty, t: now, sv: SV } : null, dty: dmTy ? { to: dmTy, t: now } : null };
-      const pIds = [...new Set([...people.map(u => u.id), ...fids])];
+      // the video call this browser is in (it keeps sending ?call=ch:<channel> or dm:<friendId> while its call tab is open): a channel I can see / a friend. Counted like presence, nothing extra is stored.
+      const cq = String(q.get('call') || ''), cn = Number(q.get('cs'));
+      const callScope = /^ch:/.test(cq) && chans.some(c => c.id === cq.slice(3)) ? 'ch:' + SV + ':' + cq.slice(3) : /^dm:/.test(cq) && fids.includes(cq.slice(3)) ? 'dm:' + [me.id, cq.slice(3)].sort().join(':') : null;
+      const callSince = Number.isFinite(cn) && cn <= now && cn > now - 12 * 36e5 ? cn : now;   // when the call started (the first person's click)
+      const mePres = { t: now, ty: ty ? { c: ty, t: now, sv: SV } : null, dty: dmTy ? { to: dmTy, t: now } : null, call: callScope ? { s: callScope, st: callSince, t: now } : null };
+      const popAll = us.filter(u => u.active);                                                           // everyone of this server: a call in another channel needs their presence too
+      const pIds = [...new Set([...popAll.map(u => u.id), ...people.map(u => u.id), ...fids])];
       // Everything below is independent, so run it all at once instead of one blob read after another (this was most of the server-side delay).
       const [, presList, datas, dmDatas] = await Promise.all([
         st.setJSON('pres:' + me.id, mePres),                                                              // heartbeat: one key per person, so polls never collide
@@ -847,13 +853,18 @@ export default async (req) => {
       ]);
       const pres = Object.fromEntries(presList);
       const on = people.filter(u => pres[u.id] && now - pres[u.id].t < ONLINE_MS);
+      const callOf = (scope, cand) => {   // { n people in the call, since when it started, am I in it } or null
+        let n = 0, since = Infinity, mine = false;
+        for (const u of cand) { const c = (u.id === me.id ? mePres : pres[u.id])?.call; if (c && c.s === scope && now - c.t < CALL_MS) { n++; since = Math.min(since, c.st || now); if (u.id === me.id) mine = true; } }
+        return n ? { n, since, me: mine } : null;
+      };
       const seen = parseSeen(q.get('seen')), unseen = q.get('seen') ? 0 : Infinity;   // no 'seen' at all = brand-new browser (nothing unread); a channel missing from a known list = created since, so all of it is unread
       let rev = 0, msgs, newest = 0;
       const channels = [];
       chans.forEach((c, i) => {
         const d = datas[i] || { rev: 0, msgs: [] };
         const last = d.msgs.at(-1)?.ts || 0; newest = Math.max(newest, last);
-        channels.push({ id: c.id, name: c.name, tag: c.tag || null, last, unread: Math.min(99, d.msgs.filter(x => x.uid !== me.id && x.ts > (seen[c.id] ?? unseen)).length) });
+        channels.push({ id: c.id, name: c.name, tag: c.tag || null, last, call: callOf('ch:' + SV + ':' + c.id, popAll.concat(popAll.some(u => u.id === me.id) ? [] : [me]).filter(u => !c.tag || u.tagIds.includes(c.tag))), unread: Math.min(99, d.msgs.filter(x => x.uid !== me.id && x.ts > (seen[c.id] ?? unseen)).length) });
         if (c.id === ch) { rev = d.rev || 0; if (rev !== Number(q.get('rev'))) msgs = d.msgs.slice(-CHAT_SHOW).map(x => chatMsg(x, me, nameUs)); }
       });
       // "hot" = ms since the last sign of a live conversation (a new message, or someone else typing). The browser polls faster only while the chat is hot.
@@ -868,7 +879,7 @@ export default async (req) => {
         if (typing) dmTyping = true;
         if (dmOpen.includes(id)) { const r = d.rev || 0; dms[id] = { rev: r, ...(r !== (drev[id] ?? -1) ? { msgs: d.msgs.slice(-CHAT_SHOW).map(x => dmMsg(x, me)) } : {}) }; }
         newest = Math.max(newest, lm?.ts || 0);
-        return { ...card(u), online, typing, last: lm?.ts || 0, prev: lm ? lm.text.slice(0, 60) : '', pm: !!lm && lm.uid === me.id,
+        return { ...card(u), online, typing, call: callOf('dm:' + [me.id, id].sort().join(':'), [me, u]), last: lm?.ts || 0, prev: lm ? lm.text.slice(0, 60) : '', pm: !!lm && lm.uid === me.id,
           unread: Math.min(99, d.msgs.filter(x => x.uid !== me.id && x.ts > (dseen[id] ?? dun)).length) };
       });
       const asCards = ids => ids.map(id => allUs.find(u => u.id === id && u.active)).filter(Boolean).map(card);

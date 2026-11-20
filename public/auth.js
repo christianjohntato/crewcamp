@@ -72,9 +72,21 @@ addEventListener('pageshow',async e=>{
   document.readyState==='loading'?document.addEventListener('DOMContentLoaded',run):run();
 })();
 
-/* 📹 free video call: asks the server for the private room of a channel (?ch=) or of a friend (?dm=) and opens it in a new tab */
-async function startCall(q){
+/* 📹 free video call: asks the server for the private room of a channel (?ch=) or of a friend (?dm=) and opens it in a new tab.
+   While that tab stays open, the chat poll tells the server "I am in this call" (callParams below), which is what feeds the small
+   "Call in progress · since 3:42 PM · 2 in call" notice in the chat boxes. */
+window.__cwCall=null;let callT=0;   // the call this tab opened: {q:'ch=general'|'dm=<id>', sv, since, w}
+function callLive(){const c=window.__cwCall;if(!c)return null;if(c.w&&c.w.closed){setCall(null);return null}return c}
+function setCall(c){window.__cwCall=c;clearInterval(callT);if(c)callT=setInterval(callLive,2000);   // notice quickly when the call tab is closed
+  window.dispatchEvent(new Event('cw:call'))}   // chat.js polls right away, so everybody sees the change in seconds
+function callParams(sv){   // extra query for /api/chat while I am in a call
+  const c=callLive();if(!c)return null;
+  const i=c.q.indexOf('='),k=c.q.slice(0,i),v=decodeURIComponent(c.q.slice(i+1));
+  if(k==='ch'&&c.sv!==sv)return null;   // a channel call belongs to one server
+  return{call:k+':'+v,cs:c.since}}
+async function startCall(q,server,since){   // since = when the call started, if it is already running (so joining keeps the first person's time)
   const w=window.open('','_blank');   // open synchronously so popup blockers allow it
-  try{const d=await api('/api/call?'+q);if(w)w.location.href=d.url;else location.href=d.url}
+  try{const d=await api('/api/call?'+q,'GET',undefined,server);
+    if(w){w.location.href=d.url;setCall({q,sv:server||localStorage.getItem('stb_sv')||'cepalco',since:since||Date.now(),w})}else location.href=d.url}
   catch(e){if(w)w.close();alert(e.message||'Could not start the call.')}
 }

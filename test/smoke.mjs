@@ -643,6 +643,43 @@ console.log('Server rail: unread chat badges');
   delete process.env.GOOGLE_ALLOWED_DOMAINS; delete process.env.GOOGLE_CLIENT_ID; globalThis.fetch = realFetch;
 }
 
+console.log('Ongoing call notice');
+{
+  const real = Date.now, t0 = real();
+  const ch = async (B, qs = '') => (await B('/chat' + (qs ? '?' + qs : ''))).d;
+  const gen = d => d.channels.find(c => c.id === 'general');
+  check('call: no call, no notice', gen(await ch(SS)).call === null && gen(await ch(N)).call === null);
+  const a = gen(await ch(SS, `call=ch:general&cs=${t0 - 60000}`));
+  check('call: the person who starts it is counted (1 in call, started when they clicked, "me")', a.call && a.call.n === 1 && a.call.me === true && a.call.since === t0 - 60000);
+  const b = gen(await ch(N));
+  check('call: everyone else sees it on their next poll (not "me")', b.call && b.call.n === 1 && b.call.me === false && b.call.since === t0 - 60000);
+  const c = gen(await ch(N, `call=ch:general&cs=${t0 - 5000}`));
+  check('call: a second person joining makes 2; the start time stays the first person\'s', c.call.n === 2 && c.call.me === true && c.call.since === t0 - 60000);
+  const keepN = `call=ch:general&cs=${t0 - 5000}`;   // a browser that is still in the call keeps sending it on every poll
+  check('call: a channel nobody called in has no notice (same server)', (await ch(N, keepN)).channels.filter(x => x.id !== 'general').every(x => x.call === null));
+  check('call: junk is ignored (unknown channel, bad scope)', gen(await ch(H2, 'call=ch:nope&cs=1')).call.n === 2 && gen(await ch(H2, 'call=zzz')).call.n === 2);
+  check('call: a start time in the future is replaced by "now" and never moves the real start', gen(await ch(H2, `call=ch:general&cs=${t0 + 9e9}`)).call.since === t0 - 60000);
+  await ch(H2);   // H2 leaves again
+  Date.now = () => real() + 100000;
+  const late = gen(await ch(N));   // 100 s later nobody has refreshed: the call is over
+  Date.now = real;
+  check('call: it ends by itself once nobody has refreshed for ~90 s', late.call === null);
+  gen(await ch(SS, 'call=ch:general'));
+  check('call: a call started now shows up with a start of "now"', Math.abs(gen(await ch(N)).call.since - real()) < 5000 && gen(await ch(N)).call.n === 1);
+  await ch(SS);   // SS stops sending it = left the call
+  check('call: leaving (the browser stops sending it) removes you at once', gen(await ch(N)).call === null);
+  // private calls: only the two friends
+  await SS('/friends/request', 'POST', { userId: head2 }); await H2('/friends/accept', 'POST', { userId: staff2 });
+  const dmOf = (d, id) => d.friends.find(f => f.id === id);
+  const d1 = dmOf(await ch(SS, `call=dm:${head2}&cs=${t0 - 30000}`), head2);
+  check('call: a private call counts me and shows on that friend', d1.call && d1.call.n === 1 && d1.call.me === true && d1.call.since === t0 - 30000);
+  const d2 = dmOf(await ch(H2), staff2);
+  check('call: the friend sees it on the conversation with me', d2.call && d2.call.n === 1 && d2.call.me === false && d2.call.since === t0 - 30000);
+  check('call: it does not appear in the group channels', gen(await ch(N)).call === null && gen(await ch(H2)).call === null);
+  check('call: a non-friend cannot be "called" (ignored)', (await ch(SS, `call=dm:${(await N('/me')).d.user.id}`)).friends.every(f => f.call === null));
+  await ch(SS);
+}
+
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(failed ? `\n${failed} check(s) FAILED` : '\nAll checks passed');
 process.exit(failed ? 1 : 0);

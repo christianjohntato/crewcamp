@@ -41,7 +41,7 @@
   const root = document.createElement('div');
   root.className = 'cw';
   root.innerHTML = `
-<button class="cw-pill" id="cwPill" type="button" aria-label="Open group chat" title="Click to open · drag to move"><span aria-hidden="true">💬</span><span class="cw-pn" id="cwPn">Group chat</span><span class="cw-live" id="cwLive" hidden></span><em class="cw-badge" id="cwBadge" hidden></em></button>
+<button class="cw-pill" id="cwPill" type="button" aria-label="Open group chat" title="Click to open · drag to move"><span aria-hidden="true">💬</span><span class="cw-pn" id="cwPn">Group chat</span><span class="cw-live" id="cwLive" hidden></span><span class="cw-pcall" id="cwPCall" hidden title="Call in progress" aria-label="Call in progress">📹</span><em class="cw-badge" id="cwBadge" hidden></em></button>
 <section class="cw-win" id="cwWin" role="dialog" aria-label="Group chat" hidden>
   <header class="cw-head" id="cwHead" title="Drag to move · double-click to put it back">
     <div class="cw-title"><b id="cwTitle"># general</b><small id="cwSub">Connecting…</small></div>
@@ -52,6 +52,7 @@
   </header>
   <div class="cw-svbar"><button class="cw-svchip" id="cwSv" type="button" aria-haspopup="listbox" aria-expanded="false" title="Server this chat belongs to"></button><div class="cw-svmenu" id="cwSvMenu" role="listbox" aria-label="Choose a server's chat" hidden></div></div>
   <nav class="cw-chans" id="cwChans" aria-label="Channels"></nav>
+  <div class="cw-callbar" id="cwCallBar" role="status" hidden></div>
   <div class="cw-log" id="cwLog" role="log" aria-live="polite" tabindex="0"></div>
   <div class="cw-typing" id="cwTyping" aria-live="polite"></div>
   <div class="cw-edit" id="cwEdit" hidden><span>✎ Editing your message</span><button type="button" id="cwEditX">Cancel</button></div>
@@ -138,6 +139,7 @@
   function renderPill() {
     const n = S.channels.reduce((a, c) => a + unreadOf(c), 0), b = $('#cwBadge'), l = $('#cwLive');
     b.hidden = !n; b.textContent = n > 99 ? '99+' : n;
+    $('#cwPCall').hidden = !S.channels.some(c => c.call);   // a call is running somewhere in this chat
     window.dispatchEvent(new CustomEvent('cw:unread', { detail: { n, sv: S.sv } }));   // the server rail shows the same count on this server's icon
     $('#cwPill').setAttribute('aria-label', 'Open group chat of ' + svName() + (n ? ', ' + n + ' unread' : ''));
     $('#cwPn').textContent = CROSS || S.svs.length > 1 ? svName() : 'Group chat'; $('#cwPill').title = svName() + ' · click to open · drag to move';
@@ -180,11 +182,11 @@
     ta.placeholder = 'Message #' + S.ch;
   }
   function renderChans() {
-    const sig = JSON.stringify([S.ch, S.me && S.me.role, S.channels.map(c => [c.id, unreadOf(c), c.tag])]);
+    const sig = JSON.stringify([S.ch, S.me && S.me.role, S.channels.map(c => [c.id, unreadOf(c), c.tag, !!c.call])]);
     if (sig === sigC) return; sigC = sig;
     const admin = S.me && S.me.role === 'admin', curTag = (S.channels.find(c => c.id === S.ch) || {}).tag;   // a role's channel is removed by deleting the role, not here
     $('#cwChans').innerHTML = S.channels.map(c => { const u = unreadOf(c);
-      return `<button type="button" class="cw-ch${c.id === S.ch ? ' on' : ''}" data-ch="${esc(c.id)}" aria-pressed="${c.id === S.ch}"${c.tag ? ' title="Private: only people with this role can see it"' : ''}>${c.tag ? '🔒 ' : ''}# ${esc(c.name)}${u ? `<em class="cw-badge">${u}</em>` : ''}</button>`; }).join('')
+      return `<button type="button" class="cw-ch${c.id === S.ch ? ' on' : ''}" data-ch="${esc(c.id)}" aria-pressed="${c.id === S.ch}"${c.tag ? ' title="Private: only people with this role can see it"' : ''}>${c.tag ? '🔒 ' : ''}# ${esc(c.name)}${c.call ? '<i class="cw-cv" title="Call in progress" aria-hidden="true">📹</i>' : ''}${u ? `<em class="cw-badge">${u}</em>` : ''}</button>`; }).join('')
       + (admin ? '<button type="button" class="cw-ch ghost" data-a="add" title="Add a channel" aria-label="Add a channel">＋</button>' : '')
       + (admin && S.ch !== 'general' && !curTag ? '<button type="button" class="cw-ch ghost" data-a="rm" title="Remove this channel" aria-label="Remove this channel">🗑</button>' : '');
   }
@@ -235,7 +237,20 @@
     mem.innerHTML = h;
     mem.querySelectorAll('.cw-st').forEach(el => el.append(avatar(idx[el.dataset.i])));
   }
-  const renderAll = () => { renderPill(); renderHead(); renderChans(); renderTyping(); renderMembers(); if (window.__cwF) window.__cwF.layout(); };
+  /* small "Call in progress · since 3:42 PM · 2 in call  [Join]" line under the channels (for the channel being viewed) */
+  let sigCall = '';
+  function renderCall() {
+    const bar = $('#cwCallBar'), cur = S.channels.find(c => c.id === S.ch), k = cur && cur.call;
+    const sig = k ? [S.ch, k.n, k.since, k.me].join() : '';
+    if (sig === sigCall) return; sigCall = sig;
+    bar.hidden = !k; if (!k) { bar.textContent = ''; return; }
+    bar.innerHTML = `<i class="cw-cdot" aria-hidden="true"></i><span><b>Call in progress</b> · since ${tf.format(k.since)} · ${k.n} in call</span>` + (k.me ? '<em>you’re in</em>' : '<button type="button" class="cw-cjoin" data-a="joincall">Join</button>');
+  }
+  $('#cwCallBar').addEventListener('click', e => {
+    const cur = S.channels.find(c => c.id === S.ch);
+    if (e.target.closest('[data-a=joincall]')) startCall('ch=' + encodeURIComponent(S.ch), S.sv, cur && cur.call && cur.call.since);
+  });
+  const renderAll = () => { renderPill(); renderHead(); renderChans(); renderCall(); renderTyping(); renderMembers(); if (window.__cwF) window.__cwF.layout(); };
 
   /* ---------- window: open / minimize / position ---------- */
   function applyPos() {
@@ -295,7 +310,8 @@
   addEventListener('resize', applyPos);
 
   /* ---------- polling ---------- */
-  const delay = () => fails ? Math.min(30000, 4000 * 2 ** Math.min(fails, 3)) : document.hidden ? POLL.hidden : (S.open || (window.__cwF && window.__cwF.active())) ? (S.hot < HOT_MS ? POLL.hot : POLL.open) : POLL.minimized;
+  const delay = () => { const d = delay0(); return callLive() && d > 25000 ? 25000 : d; };   // in a call the tab is in the background: keep telling the server I am still in it
+  const delay0 = () => fails ? Math.min(30000, 4000 * 2 ** Math.min(fails, 3)) : document.hidden ? POLL.hidden : (S.open || (window.__cwF && window.__cwF.active())) ? (S.hot < HOT_MS ? POLL.hot : POLL.open) : POLL.minimized;
   function schedule(ms) { clearTimeout(timer); timer = setTimeout(poll, ms == null ? delay() : ms); }
   async function poll() {
     if (busy) return;
@@ -305,6 +321,7 @@
     const seen = Object.entries(S.seen).map(([k, v]) => k + ':' + v).join(',');
     if (seen) q.set('seen', seen);
     if (S.open && Date.now() - S.lastType < 5000) q.set('typing', S.ch);
+    const cp = callParams(S.sv); if (cp) for (const k in cp) q.set(k, cp[k]);   // I am in a video call (auth.js)
     const fx = window.__cwF && window.__cwF.params(); if (fx) for (const k in fx) q.set(k, fx[k]);   // private conversations that are open + what was read (friends.js)
     try { const d = await capi('/api/chat?' + q); fails = 0; S.err = false; apply(d); }
     catch (e) { if (e.status === 401) return location.replace('login.html'); fails++; S.err = true; renderHead(); }
@@ -403,7 +420,8 @@
   $('#cwSv').onclick = e => { e.stopPropagation(); const m = $('#cwSvMenu'); m.hidden = !m.hidden; $('#cwSv').setAttribute('aria-expanded', String(!m.hidden)); if (!m.hidden) renderSv(); };
   $('#cwSvMenu').addEventListener('click', e => { const b = e.target.closest('[data-sv]'); if (b) setServer(b.dataset.sv); });
   document.addEventListener('click', e => { const m = $('#cwSvMenu'); if (!m.hidden && !m.contains(e.target)) { m.hidden = true; $('#cwSv').setAttribute('aria-expanded', 'false'); } });
-  $('#cwCall').onclick = () => startCall('ch=' + encodeURIComponent(S.ch));
+  $('#cwCall').onclick = () => { const cur = S.channels.find(c => c.id === S.ch); startCall('ch=' + encodeURIComponent(S.ch), S.sv, cur && cur.call && cur.call.since); };
+  addEventListener('cw:call', () => schedule(0));   // I just joined / left a call: tell the server now
   $('#cwMin').onclick = () => { setOpen(false); $('#cwPill').focus(); };
   $('#cwMem').onclick = () => setMembers(!S.members);
   mem.addEventListener('click', e => {

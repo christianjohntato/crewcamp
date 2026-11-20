@@ -96,8 +96,10 @@ body.cw-drag{user-select:none;-webkit-user-select:none;cursor:grabbing}
 
 /* ---- phones: bottom sheet, like CrewCamp's dialogs ---- */
 @media(max-width:700px){
-  .cw{--cw-h:min(78dvh,600px)}
-  .cw-win,.cw-win.moved,.cw-mem{left:0;right:0;bottom:calc(46px + var(--safe-b));top:auto;width:auto;height:var(--cw-h);border-radius:22px 22px 14px 14px}
+  :root{--cw-m-lift:160px}   /* ≈ 1 real inch on a phone (a CSS pixel is about 1/160 in): lifts the chat clear of the Netlify badge. Tune here. */
+  .cw,.cwf{--cw-lift:calc(64px + var(--cw-m-lift))}   /* the round "💬 Group chat" button + the DM dock */
+  .cw{--cw-h:min(78dvh,600px,calc(100dvh - 46px - var(--cw-m-lift) - var(--safe-b) - 16px))}
+  .cw-win,.cw-win.moved,.cw-mem{left:0;right:0;bottom:calc(46px + var(--cw-m-lift) + var(--safe-b));top:auto;width:auto;height:var(--cw-h);border-radius:22px 22px 14px 14px}
   .cw-mem{z-index:46;padding:14px 8px calc(12px + var(--safe-b))}
   .cw-form{padding-bottom:10px}
   .cw-head{cursor:default;touch-action:auto}
@@ -149,3 +151,19 @@ body.cw-drag{user-select:none;-webkit-user-select:none;cursor:grabbing}
 .cw-svo:hover{background:var(--soft)}.cw-svo.on{background:var(--soft);box-shadow:inset 3px 0 0 var(--acc)}
 .cw-pill .cw-pn{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cw-ib.cw-call,#cwCall,.cwf-wh [data-a=call]{width:auto;padding:0 10px;border-radius:99px;gap:4px;white-space:nowrap}
+
+/* ---- ongoing-call notice: one small line, same look in the group chat and in private chats ---- */
+.cw-callbar{display:flex;align-items:center;gap:7px;flex:none;min-width:0;padding:5px 12px;font-size:.72rem;font-weight:600;background:var(--soft);border-bottom:1px solid var(--bd)}
+.cw-callbar[hidden]{display:none}
+.cw-callbar>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.9}
+.cw-callbar b{font-weight:800}
+.cw-callbar em{flex:none;font-style:normal;opacity:.6}
+.cw-cdot{flex:none;width:8px;height:8px;border-radius:50%;background:#22c55e;animation:cwcall 1.8s ease-out infinite}
+@keyframes cwcall{0%{box-shadow:0 0 0 0 rgba(34,197,94,.55)}100%{box-shadow:0 0 0 7px rgba(34,197,94,0)}}
+.cw-cjoin{flex:none;border:0;border-radius:99px;padding:3px 12px;min-height:24px;background:var(--acc);color:var(--acci);font:inherit;font-size:.72rem;font-weight:800;cursor:pointer}
+.cw-cjoin:active{transform:scale(.96)}
+@media(pointer:coarse){.cw-cjoin{min-height:30px;padding:0 14px}}
+.cw-cv{font-style:normal;font-size:.7rem;margin-left:3px}
+.cw-pcall{font-size:.8rem;line-height:1}
+.cw-pcall[hidden]{display:none}
+@media(prefers-reduced-motion:reduce){.cw-cdot{animation:none}}
