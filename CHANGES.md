@@ -110,3 +110,8 @@ See README ("Profile posts"). New: `posts.js`, `posts.css`; changed: `api.mjs` (
 - **Direct link:** `login.html?join=<CODE>` – log in or sign up, then you enter that server with that position. The sign-up form also has an optional passkey field.
 - **Teams:** `GET/POST /api/team` – a Supervisor picks his Staff; a Head picks his Supervisors (`headIds`) and oversees their Staff (Heads already have full power in their server). UI: "👥 My team" in the server menu.
 - Password 👁 toggle hardened (always clickable on the sign-up page).
+
+# 2.15.0 – Sections and Departments
+- **Section** = a role a Supervisor names (`POST /api/sections`). It is created as a role (tag `{id,name,sup}`) with its own `<name>-chat` chatbox and is given automatically to the Supervisor, every Staff he picks, and every Head who picked him. Anyone holding the role can use that chatbox. Picking Staff is locked until the Supervisor has made at least one Section. Section roles are managed automatically (kept in sync whenever the team changes; removing a Staff or Supervisor removes the role). `DELETE /api/sections/:id` (its Supervisor or a Head) removes the role and its chat.
+- **Department** = a named group a Head makes (`/api/departments`) out of the Sections of the Supervisors he picked. Stored per server (`depts`).
+- "👥 My team" dialog: Supervisors create/delete Sections then pick Staff; Heads pick Supervisors and manage Departments.

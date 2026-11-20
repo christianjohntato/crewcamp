@@ -8,7 +8,7 @@ const H = (m, s = 400) => new HttpError(s, m);
 
 const base = () => getStore({ name: 'taskboard', consistency: 'strong' });
 // SERVERS: keys shared / tags / chat:* live in a per-server namespace (sv:<id>:<key>); the default 'cepalco' server keeps the original un-prefixed keys. Everything else (users, boards, friends, DMs, posts, notifications, sessions) is global.
-const SCOPED = /^(shared|tags|chat:|board:)/;   // board:<uid> = that person's PERSONAL notes, kept inside each server (CEPALCO keeps the original un-prefixed keys)
+const SCOPED = /^(shared|tags|chat:|board:|depts)/;   // board:<uid> = that person's PERSONAL notes, kept inside each server (CEPALCO keeps the original un-prefixed keys)
 const DEF_SV = 'cepalco', SV_ID = /^s_[a-f0-9]{8}$/, MAX_OWN = 5, MAX_MEM = 100, SV_NAME = 'CEPALCO Server';
 const svKey = (id, k) => id !== DEF_SV && SCOPED.test(k) ? `sv:${id}:${k}` : k;
 const scoped = (b, cur) => ({ get: (k, o) => b.get(svKey(cur(), k), o), getWithMetadata: (k, o) => b.getWithMetadata(svKey(cur(), k), o), setJSON: (k, d, o) => b.setJSON(svKey(cur(), k), d, o), delete: k => b.delete(svKey(cur(), k)) });
@@ -931,16 +931,85 @@ export default async (req) => {
       return J({ ok: 1 });
     }
 
-    // ----- my team: a Supervisor picks his Staff; a Head picks his Supervisors (and so oversees their Staff) -----
+    // ----- my team, sections (roles a Supervisor creates) and departments (a Head groups sections) -----
+    const isSup = me.role === 'host', isHead = me.role === 'admin';
+    const editRecs = fn => SV === DEF_SV
+      ? mutUsers(st, list => fn(list.filter(u => u.active && !u.noDef).map(u => [u.id, u])))
+      : mutSrv(list => { const x = list.find(v => v.id === SV); fn(Object.entries(x.members)); });
+    // Section roles are managed: owner Supervisor + his Staff + the Heads who picked him hold the role (and so can use its chatbox)
+    const syncSections = (ents, tags) => {
+      const byId = new Map(ents);
+      for (const t of tags) if (t.sup) {
+        const sup = byId.get(t.sup);
+        for (const [id, rc] of ents) {
+          const should = id === t.sup ? !!sup : rc.role === 'staff' ? (rc.hostIds || []).includes(t.sup) : rc.role === 'admin' ? !!sup && (sup.headIds || []).includes(id) : false;
+          rc.tagIds = rc.tagIds || [];
+          const has = rc.tagIds.includes(t.id);
+          if (should && !has) rc.tagIds.push(t.id); else if (!should && has) rc.tagIds = rc.tagIds.filter(x => x !== t.id);
+        }
+      }
+    };
+    const depts = async () => (await st.get('depts', { type: 'json' })) || [];
     if (path === '/team' && (m === 'GET' || m === 'POST')) {
-      if (me.role !== 'host' && me.role !== 'admin') throw H('Only Supervisors and Heads have a team.', 403);
-      const kind = me.role === 'host' ? 'staff' : 'host', field = me.role === 'host' ? 'hostIds' : 'headIds';
-      if (m === 'GET') return J({ kind, candidates: us.filter(u => u.active && u.role === kind && u.id !== me.id).map(u => { const l = (me.role === 'host' ? u.hostIds : u.headIds) || []; return { id: u.id, name: u.name || u.username, mine: l.includes(me.id), others: l.filter(h => h !== me.id).length, staff: kind === 'host' ? us.filter(x => x.role === 'staff' && (x.hostIds || []).includes(u.id)).length : undefined }; }) });
+      if (!isSup && !isHead) throw H('Only Supervisors and Heads have a team.', 403);
+      const kind = isSup ? 'staff' : 'host', field = isSup ? 'hostIds' : 'headIds', tags = await tagsRaw(st);
+      if (m === 'GET') return J({ kind, mySections: tags.filter(t => t.sup === me.id).length, candidates: us.filter(u => u.active && u.role === kind && u.id !== me.id).map(u => { const l = (isSup ? u.hostIds : u.headIds) || []; return { id: u.id, name: u.name || u.username, mine: l.includes(me.id), others: l.filter(h => h !== me.id).length, staff: kind === 'host' ? us.filter(x => x.role === 'staff' && (x.hostIds || []).includes(u.id)).length : undefined, sections: kind === 'host' ? tags.filter(t => t.sup === u.id).map(t => t.name) : undefined }; }) });
       const add = uniq(body.add), rem = uniq(body.remove);
-      const edit = fn => SV === DEF_SV ? mutUsers(st, list => fn(id => list.find(x => x.id === id && x.active && !x.noDef))) : mutSrv(list => { const x = list.find(v => v.id === SV); fn(id => x.members[id]); });
-      await edit(get => {
+      if (isSup && add.length && !tags.some(t => t.sup === me.id)) throw H('Create your Section first (give it a name), then pick your Staff.');
+      await editRecs(ents => {
+        const get = id => (ents.find(([x]) => x === id) || [])[1];
         for (const id of add) { const rc = get(id); if (rc && rc.role === kind) rc[field] = uniq([...(rc[field] || []), me.id]); }
         for (const id of rem) { const rc = get(id); if (rc) rc[field] = (rc[field] || []).filter(h => h !== me.id); }
+        syncSections(ents, tags);
+      });
+      return J({ ok: 1 });
+    }
+    if (path === '/sections' && m === 'GET') {
+      const tags = (await tagsRaw(st)).filter(t => t.sup), dl = await depts();
+      const vis = isSup ? tags.filter(t => t.sup === me.id) : isHead ? tags.filter(t => (us.find(u => u.id === t.sup)?.headIds || []).includes(me.id)) : [];
+      return J({ sections: vis.map(t => ({ id: t.id, name: t.name, sup: t.sup, supName: nameUs.find(u => u.id === t.sup)?.name || '', mine: t.sup === me.id, members: us.filter(u => u.tagIds.includes(t.id)).length, channel: tagChan(t.id) })), departments: isHead ? dl.filter(d => d.headId === me.id) : [] });
+    }
+    if (path === '/sections' && m === 'POST') {   // a Supervisor names a Section = a new role + its own chatbox, given to him, his Staff and his Heads
+      if (!isSup) throw H('Only a Supervisor can create a Section.', 403);
+      const name = String(body.name || '').trim().slice(0, 30), id = slug(name, 18);
+      if (!name || !TAG_ID.test(id)) throw H('Name your Section: letters, numbers and dashes (e.g. Billing).');
+      if ((await chanRaw(st)).some(c => c.id === tagChan(id) && c.tag !== id)) throw H(`A channel called ${tagChan(id)} already exists. Pick another name.`);
+      let tags;
+      await mutTags(st, list => {
+        if (list.some(t => t.id === id)) throw H('That Section/role name is already taken.');
+        if (list.length >= MAX_TAGS) throw H(`This server can have up to ${MAX_TAGS} roles/sections.`);
+        list.push({ id, name, sup: me.id }); tags = [...list];
+      });
+      await ensureTagChannels(st, tags);
+      await editRecs(ents => syncSections(ents, tags));
+      return J({ ok: 1, id, channel: tagChan(id) }, 201);
+    }
+    const sec = path.match(/^\/sections\/([a-z0-9-]+)$/);
+    if (sec && m === 'DELETE') {
+      let tags;
+      await mutTags(st, list => { const i = list.findIndex(t => t.id === sec[1] && t.sup); if (i < 0) throw H('Section not found', 404); if (list[i].sup !== me.id && !isHead) throw H('Only its Supervisor or a Head can delete a Section.', 403); list.splice(i, 1); tags = [...list]; });
+      await editRecs(ents => ents.forEach(([, rc]) => { rc.tagIds = (rc.tagIds || []).filter(x => x !== sec[1]); }));
+      for (const c of await ensureTagChannels(st, tags)) await st.delete('chat:' + c);
+      await mutate(st, 'depts', () => [], l => l.forEach(d => { d.sectionIds = d.sectionIds.filter(x => x !== sec[1]); }));
+      return J({ ok: 1 });
+    }
+    if (path === '/departments' || path.startsWith('/departments/')) {   // a Head groups Sections of the Supervisors he picked
+      if (!isHead) throw H('Only a Head can manage Departments.', 403);
+      const dm = path.match(/^\/departments\/([a-z0-9-]+)$/);
+      const okIds = async ids => { const tags = (await tagsRaw(st)).filter(t => t.sup && (us.find(u => u.id === t.sup)?.headIds || []).includes(me.id)); return uniq(ids).filter(i => tags.some(t => t.id === i)); };
+      if (m === 'GET') return J({ departments: (await depts()).filter(d => d.headId === me.id) });
+      if (m === 'POST') {
+        const name = String(body.name || '').trim().slice(0, 30), id = slug(name, 18);
+        if (!name || !TAG_ID.test(id)) throw H('Name your Department: letters, numbers and dashes.');
+        const sectionIds = await okIds(body.sectionIds);
+        await mutate(st, 'depts', () => [], l => { if (l.some(d => d.id === id)) throw H('That Department already exists.'); if (l.length >= 30) throw H('Too many Departments.'); l.push({ id, name, headId: me.id, sectionIds }); });
+        return J({ ok: 1, id }, 201);
+      }
+      if (!dm) throw H('Not found', 404);
+      const secIds = 'sectionIds' in body ? await okIds(body.sectionIds) : null;
+      await mutate(st, 'depts', () => [], l => {
+        const i = l.findIndex(d => d.id === dm[1] && d.headId === me.id); if (i < 0) throw H('Department not found', 404);
+        if (m === 'DELETE') l.splice(i, 1); else { if (body.name) l[i].name = String(body.name).trim().slice(0, 30) || l[i].name; if (secIds) l[i].sectionIds = secIds; }
       });
       return J({ ok: 1 });
     }
@@ -1232,7 +1301,7 @@ export default async (req) => {
     if (path === '/backup' && m === 'POST') {
       if (![3, 4, 5].includes(body.version) || !Array.isArray(body.users)) throw H('Invalid backup file');
       const tags = Array.isArray(body.tags)
-        ? body.tags.map(t => ({ id: String(t?.id || ''), name: String(t?.name || '').trim().slice(0, 30) })).filter((t, i, a) => TAG_ID.test(t.id) && t.name && a.findIndex(x => x.id === t.id) === i).slice(0, MAX_TAGS)
+        ? body.tags.map(t => ({ id: String(t?.id || ''), name: String(t?.name || '').trim().slice(0, 30), ...(t?.sup ? { sup: String(t.sup) } : {}) })).filter((t, i, a) => TAG_ID.test(t.id) && t.name && a.findIndex(x => x.id === t.id) === i).slice(0, MAX_TAGS)
         : await tagsRaw(st);   // older backups have no roles: keep the current ones
       const users = body.users.map(normUser);
       users.forEach(u => { u.tagIds = cleanTags(u.tagIds, tags); });

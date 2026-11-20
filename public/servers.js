@@ -118,11 +118,32 @@ function addDlg(){
 }
 async function teamDlg(){
   const s=LIST.find(x=>x.id===cur())||LIST[0],sup=s.role==='host';
-  const d=dlg(`<h3>👥 My team</h3><p>${sup?'Tick the Staff who report to you. They can report to more than one Supervisor.':'Tick the Supervisors who report to you. You then oversee their Staff too.'}</p><div id="tmL" style="display:flex;flex-direction:column;gap:4px;max-height:50dvh;overflow:auto">Loading…</div><div class="err"></div><div class="r"><button class="btn pri" id="tmS">Save team</button><button class="btn" id="svX">Close</button></div>`);
-  d.querySelector('#svX').onclick=close;let C=[];
-  try{C=(await api('/api/team')).candidates}catch(x){d.querySelector('.err').textContent=x.message}
-  const L=d.querySelector('#tmL');L.innerHTML=C.length?C.map(c=>`<label style="display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:10px;background:rgba(127,127,127,.1);font-size:.85rem"><input type="checkbox" data-id="${esc(c.id)}"${c.mine?' checked':''} style="width:auto"><span style="flex:1">${esc(c.name)}</span><small style="opacity:.6">${c.staff!=null?c.staff+' staff':c.others?'also with '+c.others+' other':''}</small></label>`).join(''):`<p>No ${sup?'Staff':'Supervisors'} in this server yet. Share a ${sup?'Staff':'Supervisor'} passkey from Server info.</p>`;
-  d.querySelector('#tmS').onclick=()=>act(d,async()=>{const add=[],remove=[];L.querySelectorAll('input').forEach(i=>{const c=C.find(x=>x.id===i.dataset.id);if(i.checked&&!c.mine)add.push(c.id);if(!i.checked&&c.mine)remove.push(c.id)});await api('/api/team','POST',{add,remove});close()});
+  const d=dlg(`<h3>👥 My team</h3><div id="tmB">Loading…</div><div class="err"></div><div class="r"><button class="btn pri" id="tmS">Save team</button><button class="btn" id="svX">Close</button></div>`);
+  const $=q=>d.querySelector(q),L=h=>`<div class="kb">${h}</div>`;$('#svX').onclick=close;
+  let T={candidates:[]},S={sections:[],departments:[]};
+  try{[T,S]=await Promise.all([api('/api/team'),api('/api/sections')])}catch(x){$('.err').textContent=x.message}
+  const chk=(id,on,txt,sm)=>`<label style="display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:10px;background:rgba(127,127,127,.1);font-size:.85rem"><input type="checkbox" data-id="${esc(id)}"${on?' checked':''} style="width:auto"><span style="flex:1">${txt}</span><small style="opacity:.6">${sm||''}</small></label>`;
+  let h='';
+  if(sup){
+    h+=L(`<b>🏷 My sections</b><small>Name a Section first. It becomes a role with its own chatbox, given to you and every Staff you pick (and to the Head who picks you).</small>`
+      +(S.sections.map(x=>`<div class="r" style="align-items:center;flex-wrap:nowrap"><span style="flex:1">🏷 <b>${esc(x.name)}</b> · ${x.members} member${x.members===1?'':'s'}</span><button class="btn danger" data-ds="${esc(x.id)}" style="flex:none">Delete</button></div>`).join(''))
+      +`<div class="r"><input id="scN" placeholder="Section name (e.g. Billing)" maxlength="30"><button class="btn pri" id="scC" style="flex:none">＋ Create</button></div>`);
+    h+=T.mySections?L(`<b>Pick your Staff</b>${T.candidates.length?'<div id="tmL" style="display:flex;flex-direction:column;gap:4px;max-height:34dvh;overflow:auto">'+T.candidates.map(c=>chk(c.id,c.mine,esc(c.name),c.others?'also with '+c.others+' other':'')).join('')+'</div>':'<small>No Staff yet. Share a Staff passkey from Server info.</small>'}`):L('<small>🔒 Create a Section above to unlock picking your Staff.</small>');
+  }else{
+    h+=L(`<b>Pick your Supervisors</b><small>You also get each Supervisor's Sections (roles + chatboxes) and oversee their Staff.</small>${T.candidates.length?'<div id="tmL" style="display:flex;flex-direction:column;gap:4px;max-height:30dvh;overflow:auto">'+T.candidates.map(c=>chk(c.id,c.mine,esc(c.name),(c.sections.length?c.sections.map(esc).join(', ')+' · ':'')+c.staff+' staff')).join('')+'</div>':'<small>No Supervisors yet. Share a Supervisor passkey from Server info.</small>'}`);
+    const bySup={};S.sections.forEach(x=>(bySup[x.supName]=bySup[x.supName]||[]).push(x));
+    h+=L(`<b>🏢 Departments</b><small>Group Sections of the Supervisors you picked under a Department.</small>`
+      +S.departments.map(dp=>`<div class="kb" data-dp="${esc(dp.id)}"><div class="r" style="align-items:center;flex-wrap:nowrap"><b style="flex:1">🏢 ${esc(dp.name)}</b><button class="btn" data-dsave="${esc(dp.id)}" style="flex:none">Save</button><button class="btn danger" data-ddel="${esc(dp.id)}" style="flex:none">Delete</button></div>${S.sections.length?S.sections.map(x=>chk(x.id,dp.sectionIds.includes(x.id),esc(x.name),esc(x.supName))).join(''):'<small>No Sections yet.</small>'}</div>`).join('')
+      +`<div class="kb" id="dpNew"><input id="dpN" placeholder="New Department name" maxlength="30">${S.sections.length?S.sections.map(x=>chk(x.id,false,esc(x.name),esc(x.supName))).join(''):'<small>Pick a Supervisor with a Section first.</small>'}<div class="r"><button class="btn pri" id="dpC">＋ Create Department</button></div></div>`);
+  }
+  $('#tmB').innerHTML=h;
+  const ids=el=>[...el.querySelectorAll('input[type=checkbox]:checked')].map(i=>i.dataset.id);
+  $('#tmS').onclick=()=>act(d,async()=>{const add=[],remove=[];d.querySelectorAll('#tmL input').forEach(i=>{const c=T.candidates.find(x=>x.id===i.dataset.id);if(i.checked&&!c.mine)add.push(c.id);if(!i.checked&&c.mine)remove.push(c.id)});await api('/api/team','POST',{add,remove});teamDlg()});
+  if($('#scC'))$('#scC').onclick=()=>act(d,async()=>{await api('/api/sections','POST',{name:$('#scN').value});teamDlg()});
+  d.querySelectorAll('[data-ds]').forEach(b=>b.onclick=()=>confirm('Delete this Section and its chatbox messages?')&&act(d,async()=>{await api('/api/sections/'+b.dataset.ds,'DELETE');teamDlg()}));
+  if($('#dpC'))$('#dpC').onclick=()=>act(d,async()=>{await api('/api/departments','POST',{name:$('#dpN').value,sectionIds:ids($('#dpNew'))});teamDlg()});
+  d.querySelectorAll('[data-dsave]').forEach(b=>b.onclick=()=>act(d,async()=>{await api('/api/departments/'+b.dataset.dsave,'PUT',{sectionIds:ids(b.closest('[data-dp]'))});b.textContent='Saved ✓'}));
+  d.querySelectorAll('[data-ddel]').forEach(b=>b.onclick=()=>confirm('Delete this Department? (Its Sections stay.)')&&act(d,async()=>{await api('/api/departments/'+b.dataset.ddel,'DELETE');teamDlg()}));
 }
 function infoDlg(){
   const s=LIST.find(x=>x.id===cur())||LIST[0],isH=s.role==='admin',def=s.id===DEF;
