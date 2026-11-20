@@ -1,7 +1,7 @@
 // CrewCamp - Netlify Function API (routes: /api/*)
 // Storage: Netlify Blobs. Sessions: HttpOnly cookie + revocable server-side session blob.
 import { getStore } from '@netlify/blobs';
-import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
+import { scryptSync, randomBytes, timingSafeEqual, createHmac } from 'node:crypto';
 
 class HttpError extends Error { constructor(s, m) { super(m); this.status = s; } }
 const H = (m, s = 400) => new HttpError(s, m);
@@ -263,7 +263,7 @@ export default async (req) => {
     }
 
     // ----- Google sign-in config (public: the client ID is not a secret) -----
-    if (path === '/config' && m === 'GET') return J({ googleClientId: process.env.GOOGLE_CLIENT_ID || '' });
+    if (path === '/config' && m === 'GET') return J({ googleClientId: process.env.GOOGLE_CLIENT_ID || '', video: true });
 
     // ----- Google sign up / sign in (public) -----
     // The browser sends the ID token from Google Identity Services; Google's tokeninfo endpoint verifies its signature and expiry,
@@ -929,6 +929,18 @@ export default async (req) => {
       });
       await st.delete('chat:' + chm[1]);
       return J({ ok: 1 });
+    }
+
+    // ----- video call: a private, unguessable Jitsi room per channel / per pair of friends (free; nothing is stored or relayed by this app) -----
+    if (path === '/call' && m === 'GET') {
+      const q = new URL(req.url).searchParams, ch = q.get('ch'), dm = q.get('dm');
+      let scope;
+      if (dm) { if (dm === me.id || frState(await frGet(st, me.id), dm) !== 'friends') throw H('You can only call your friends.', 403); scope = 'dm:' + [me.id, dm].sort().join(':'); }
+      else { if (!(await chanList(st, me)).some(c => c.id === (ch || 'general'))) throw H('Channel not found', 404); scope = 'ch:' + SV + ':' + (ch || 'general'); }
+      const key = await mutate(bs, 'callkey', () => ({}), r => { if (!r.k) r.k = randomBytes(24).toString('hex'); return r.k; });
+      const room = 'CrewCamp-' + createHmac('sha256', key).update(scope).digest('hex').slice(0, 24);
+      const host = String(process.env.VIDEO_HOST || 'meet.jit.si').replace(/[^a-z0-9.-]/gi, '');
+      return J({ url: `https://${host}/${room}#config.prejoinPageEnabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(JSON.stringify(me.name || me.username))}` });
     }
 
     // ----- my team, sections (roles a Supervisor creates) and departments (a Head groups sections) -----

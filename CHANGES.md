@@ -115,3 +115,7 @@ See README ("Profile posts"). New: `posts.js`, `posts.css`; changed: `api.mjs` (
 - **Section** = a role a Supervisor names (`POST /api/sections`). It is created as a role (tag `{id,name,sup}`) with its own `<name>-chat` chatbox and is given automatically to the Supervisor, every Staff he picks, and every Head who picked him. Anyone holding the role can use that chatbox. Picking Staff is locked until the Supervisor has made at least one Section. Section roles are managed automatically (kept in sync whenever the team changes; removing a Staff or Supervisor removes the role). `DELETE /api/sections/:id` (its Supervisor or a Head) removes the role and its chat.
 - **Department** = a named group a Head makes (`/api/departments`) out of the Sections of the Supervisors he picked. Stored per server (`depts`).
 - "👥 My team" dialog: Supervisors create/delete Sections then pick Staff; Heads pick Supervisors and manage Departments.
+
+# 2.16.0 – free video calls
+- 📹 button in the group-chat header (this channel) and in every private-message window (that friend). `GET /api/call?ch=|dm=` checks access (channel visible to you / you are friends) and returns a private Jitsi room URL (`CrewCamp-<HMAC>`, derived from a server-side secret, so it can't be guessed); the app opens it in a new tab. No video traffic touches Netlify; no cost, no backend state beyond one secret.
+- Optional env `VIDEO_HOST` (default `meet.jit.si`) to point at another Jitsi server.

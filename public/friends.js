@@ -176,7 +176,7 @@
   function buildWin(id) {
     const el = document.createElement('section'); el.className = 'cwf-win'; el.setAttribute('role', 'dialog');
     el.innerHTML = `
-<header class="cwf-wh" tabindex="0" role="button" title="Click to minimize or restore"><span class="cwf-wav"></span><div class="cwf-wt"><b></b><small></small></div><em class="cw-badge" hidden></em><button class="cw-ib" type="button" data-a="min" aria-label="Minimize" title="Minimize">—</button><button class="cw-ib" type="button" data-a="x" aria-label="Close" title="Close">×</button></header>
+<header class="cwf-wh" tabindex="0" role="button" title="Click to minimize or restore"><span class="cwf-wav"></span><div class="cwf-wt"><b></b><small></small></div><em class="cw-badge" hidden></em><button class="cw-ib" type="button" data-a="call" aria-label="Video call" title="Video call (opens in a new tab)">📹</button><button class="cw-ib" type="button" data-a="min" aria-label="Minimize" title="Minimize">—</button><button class="cw-ib" type="button" data-a="x" aria-label="Close" title="Close">×</button></header>
 <div class="cwf-log" role="log" aria-live="polite" tabindex="0"></div>
 <div class="cw-typing"></div>
 <div class="cw-edit" hidden><span>✎ Editing your message</span><button type="button" data-a="editx">Cancel</button></div>
@@ -222,6 +222,7 @@
         const a = b.dataset.a, row = e.target.closest('.cwf-m');
         if (a === 'x') return closeWin(id);
         if (a === 'min') return toggleMin(id);
+        if (a === 'call') return startCall('dm=' + encodeURIComponent(id));
         if (a === 'editx') { stopEdit(id); w.ta.value = ''; autosize(); return; }
         if (a === 'edit' && row) return startEdit(id, row.dataset.id);
         if (a === 'del' && row) return delMsg(id, row.dataset.id);

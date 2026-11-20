@@ -71,3 +71,10 @@ addEventListener('pageshow',async e=>{
   const run=()=>document.querySelectorAll('input[type=password]').forEach(wrap);
   document.readyState==='loading'?document.addEventListener('DOMContentLoaded',run):run();
 })();
+
+/* 📹 free video call: asks the server for the private room of a channel (?ch=) or of a friend (?dm=) and opens it in a new tab */
+async function startCall(q){
+  const w=window.open('','_blank');   // open synchronously so popup blockers allow it
+  try{const d=await api('/api/call?'+q);if(w)w.location.href=d.url;else location.href=d.url}
+  catch(e){if(w)w.close();alert(e.message||'Could not start the call.')}
+}
