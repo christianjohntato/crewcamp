@@ -405,3 +405,11 @@ body[data-mode] .wm{}
 .login .or{display:flex;align-items:center;gap:10px;margin:14px 0 12px;font-size:.75rem;font-weight:700;opacity:.6;text-transform:uppercase;letter-spacing:.06em}
 .login .or::before,.login .or::after{content:"";flex:1;height:1px;background:currentColor;opacity:.3}
 .login .gbtn{display:flex;justify-content:center;min-height:44px}
+
+/* Log in / Sign up switch + the cover that keeps the Google button inactive until the sign-up form is filled in */
+.login .tabs{display:flex;gap:4px;padding:4px;margin:0 0 12px;border-radius:99px;background:rgba(127,127,127,.14)}
+.login .tabs button{flex:1;border:0;border-radius:99px;padding:8px 10px;font:inherit;font-weight:700;font-size:.85rem;color:inherit;background:transparent;opacity:.65;cursor:pointer}
+.login .tabs button.on{background:var(--acc,#4a7fc4);color:#fff;opacity:1}
+.login .gbox{position:relative}
+.login .gblock{position:absolute;inset:0;z-index:2;cursor:not-allowed;border-radius:99px;background:rgba(255,255,255,.55)}
+body:not(.th-white) .login .gblock,.login .gblock{backdrop-filter:grayscale(1)}

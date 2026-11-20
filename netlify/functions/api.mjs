@@ -269,6 +269,14 @@ export default async (req) => {
       if (!cid) throw H('Google sign-in is not set up yet (GOOGLE_CLIENT_ID is missing).', 503);
       const cred = String(body.credential || '');
       if (!/^[\w-]+\.[\w-]+\.[\w-]+$/.test(cred) || cred.length > 4096) throw H('Invalid Google sign-in.', 401);
+      const su = body.mode === 'signup';   // sign up = the person chose a display name, username and password first; log in = existing accounts only
+      let sd = null;
+      if (su) {
+        sd = { nm: String(body.name || '').trim().slice(0, 60), un: String(body.username || '').trim().toLowerCase(), pw: String(body.password || '') };
+        if (!sd.nm) throw H('Enter a display name.');
+        if (!UN.test(sd.un)) throw H('Username: 3–30 letters, numbers, . _ -');
+        if (sd.pw.length < 6) throw H('Password must be at least 6 characters.');
+      }
       let g;
       try {
         const r = await fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(cred));
@@ -284,15 +292,16 @@ export default async (req) => {
       await mutUsers(st, list => {
         u = list.find(x => x.googleSub === g.sub) || list.find(x => x.email === email);
         if (u) {
+          if (su) throw H('This Google account already has an account. Tap Log in instead.', 409);
           if (!u.active) throw H('This account is disabled.', 401);
           if (!u.googleSub) u.googleSub = g.sub;
           return;
         }
+        if (!su) throw H('No account for this Google account yet. Tap Sign up first.', 404);
         if (list.length >= 500) throw H('This server is full.');
-        let base = (email.split('@')[0].toLowerCase().replace(/[^a-z0-9_.-]/g, '').slice(0, 24) || 'user').padEnd(3, '0'), un = base;
-        for (let i = 2; list.some(x => x.username === un); i++) un = base.slice(0, 26) + i;
+        if (list.some(x => x.username === sd.un)) throw H('Username already exists.');
         const salt = randomBytes(8).toString('hex');
-        u = { id: 'u_' + randomBytes(6).toString('hex'), username: un, name: String(g.name || '').trim().slice(0, 60) || un, role: 'staff', active: true, salt, hash: hp(randomBytes(24).toString('hex'), salt), created: today(), hostIds: [], tagIds: [], email, googleSub: g.sub };   // random password: this account signs in with Google
+        u = { id: 'u_' + randomBytes(6).toString('hex'), username: sd.un, name: sd.nm, role: 'staff', active: true, salt, hash: hp(sd.pw, salt), created: today(), hostIds: [], tagIds: [], email, googleSub: g.sub };   // the password they chose also works for the normal Log in form
         list.push(u); created = true;
       });
       const token = randomBytes(24).toString('hex');

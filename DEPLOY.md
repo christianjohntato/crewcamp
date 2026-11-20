@@ -48,4 +48,6 @@ Docs: `README.md` (features/roles), `SERVERS.md` (servers feature), `CHANGES.md`
 3. In Netlify → Site configuration → Environment variables add `GOOGLE_CLIENT_ID` (the client ID from step 1), then redeploy.
 4. Optional: `GOOGLE_ALLOWED_DOMAINS=yourcompany.com` limits who may join (comma-separated). Without it, **any** Google account can sign up as Staff.
 
-Until `GOOGLE_CLIENT_ID` is set, the login page shows only the username/password form. New Google accounts are created as Staff; existing username/password accounts keep working (the admin login is unchanged).
+Until `GOOGLE_CLIENT_ID` is set, the login page shows only the username/password form.
+
+**Sign up:** the person opens the **Sign up** tab, chooses a display name, username and password, then taps **Sign up with Google** (the button stays covered until all three are valid). The account is created as Staff and can afterwards log in with Google or with that username + password. **Log in** with Google only works for accounts that already exist. Existing username/password accounts keep working (the admin login is unchanged).
