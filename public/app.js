@@ -296,7 +296,7 @@ function shareText(t){
   if(t.description)L.push('📝 '+t.description);
   L.push('','📅 Due: '+due,icon+' Priority: '+t.priority,'👤 Assigned by: '+t.createdByName,
     '👥 Assigned to:',...t.assignees.map(a=>(a.done?'  ✅ ':'  ⬜ ')+a.name),
-    '📊 Progress: '+dn+'/'+n+' done','','— Co-Work');
+    '📊 Progress: '+dn+'/'+n+' done','','— CrewCamp');
   return L.join('\n');
 }
 function copyText(txt){   // synchronous fallback works on http/older browsers; async API is tried first

@@ -1,3 +1,10 @@
+# v2.13.2
+- CEPALCO Manage Users: "Add member (existing account)" form (username + position + roles); unknown usernames point to Admin → Accounts.
+- UI fixes: login label no longer overwrites the password eye button; admin pages wrap cleanly and leave room for the mobile server tab and Group chat button.
+
+# v2.13.1
+- CEPALCO Server now has an invite code (Head / platform admin: Server info or Admin → create, renew, turn off). People sign up on the login page with the code ("Have an invite code? Sign up") and get a Staff account. Wrong codes are rate-limited per IP.
+
 # v2.13.0
 - Accounts (add/edit/delete) and Backup moved to Admin settings → Accounts & backup; global, not bound to any server. New API `/admin/accounts`.
 - CEPALCO Manage Users keeps positions/roles only. Cache headers tuned (HTML revalidates, assets cached + stale-while-revalidate, API never cached).
@@ -72,7 +79,7 @@ New: CEPALCO Server (default) + user-created servers; left hover rail (`public/s
 ## 5. Logo and taglines
 
 - Header tagline "Philippine calendar · tap a date..." and login line "Log in to open your calendar" replaced with italic *your cowork choice!*; "Version 1.0.0" (not italic) added: after it in the header, on its own line on the login page. Same single line height, so nothing shifts.
-- New logo: calendar-with-checkmark mark (inline SVG that follows the theme/mode accent colour) plus a "Co-Work" wordmark with an accent hyphen. Also used as the favicon (`public/logo.svg`). Replaces the 🗓️ emoji.
+- New logo: calendar-with-checkmark mark (inline SVG that follows the theme/mode accent colour) plus a "CrewCamp" wordmark with an accent hyphen. Also used as the favicon (`public/logo.svg`). Replaces the 🗓️ emoji.
 
 # Friends & private messages
 See README ("Friends & private messages"). New: friends.js, friends.css; changed: api.mjs, chat.js, app.js, the three HTML pages, test/smoke.mjs (+41 checks).

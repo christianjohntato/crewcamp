@@ -1,28 +1,33 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="theme-color" content="#f6f7f9">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Log in · Co-Work</title>
+<title>Log in · CrewCamp</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400..700&family=Quicksand:wght@400..700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/svg+xml" href="logo.svg"><link rel="stylesheet" href="style.css"></head>
 <body class="th-white login" style="padding-top:max(14px,env(safe-area-inset-top))">
 <script src="auth.js"></script>
 <form class="panel card" id="f">
-  <div class="head"><svg class="logo big" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><defs><linearGradient id="lgl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--acc)"/><stop offset="1" style="stop-color:var(--acc);stop-opacity:.72"/></linearGradient></defs><rect width="64" height="64" rx="16" fill="url(#lgl)"/><rect x="12" y="16" width="40" height="36" rx="7" fill="#fff"/><path d="M12 23a7 7 0 0 1 7-7h26a7 7 0 0 1 7 7v3H12z" fill="#000" fill-opacity=".16"/><rect x="21" y="10" width="5" height="12" rx="2.5" fill="#fff"/><rect x="38" y="10" width="5" height="12" rx="2.5" fill="#fff"/><path d="M23 38.5l6.5 6.5L42 32" fill="none" stroke="var(--acc)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg><h1 class="logo-h"><span class="wm">Co<b>-</b>Work</span></h1><p class="sub"><i>your cowork choice!</i></p></div>
+  <div class="head"><svg class="logo big" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><defs><linearGradient id="lgl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4a7fc4"/><stop offset="1" stop-color="#6b9bd3"/></linearGradient></defs><rect width="64" height="64" rx="16" fill="url(#lgl)"/><path d="M14 16h8c2 0 3 1 3 3v22c0 3 1 5 3 6l-2 4H17c-2 0-3-1-3-3z" fill="#fff"/><path d="M27 16h25a2 2 0 0 1 2 2v25a2 2 0 0 1-2 2H27z" fill="#fff"/><path d="M30 18l9 2.500a2 2 0 0 1 1.500 2V36l-10.500 6z" fill="#7f97b3"/><path d="M38 41c5-1 11-1 13 4v1H38z" fill="#7f97b3"/><path d="M20.500 38l6 6L40 30" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><path d="M20.500 38l6 6L40 30" fill="none" stroke="#4a7fc4" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg><h1 class="logo-h"><span class="wm">CrewCamp</span></h1><p class="sub"><i>your coworking camp!</i></p></div>
   <input id="u" placeholder="Username" enterkeyhint="next" autocomplete="username" autocapitalize="none" required autofocus>
   <input id="p" type="password" placeholder="Password" autocomplete="current-password" required>
   <div id="err" class="bad" style="font-size:.78rem;font-weight:700;min-height:1.2em"></div>
   <button class="btn pri big" type="submit">Log in</button>
-  <div class="foot">Version 2.12</div>
+  <div class="foot">Version 2.13.2</div>
+  <div style="text-align:center;margin-top:8px"><a href="#" id="tg" style="font-size:.8rem;font-weight:700">Have an invite code? Sign up</a></div>
 </form>
 <script>
 (async()=>{
   if(await currentUser())return location.replace('cross.html');
-  const btn=document.querySelector('button'),err=document.getElementById('err');
+  const btn=document.querySelector('button[type=submit]'),err=document.getElementById('err');
+  let su=false;const U=document.getElementById('u'),P=document.getElementById('p');
+  const nm=document.createElement('input');nm.placeholder='Display name';nm.hidden=true;nm.maxLength=60;U.before(nm);
+  const cd=document.createElement('input');cd.placeholder='Invite code (8 characters)';cd.hidden=true;cd.maxLength=12;cd.autocapitalize='characters';U.before(cd);
+  document.getElementById('tg').onclick=e=>{e.preventDefault();su=!su;nm.hidden=cd.hidden=!su;P.autocomplete=su?'new-password':'current-password';btn.textContent=su?'Sign up':'Log in';e.target.textContent=su?'Back to log in':'Have an invite code? Sign up';err.textContent=''};
   document.getElementById('f').onsubmit=async e=>{
-    e.preventDefault();btn.disabled=true;btn.textContent='Logging in…';err.textContent='';
-    try{await login(document.getElementById('u').value,document.getElementById('p').value);location.href='cross.html'}
-    catch(x){err.textContent=x.status?x.message:'Cannot reach the server. Check your connection.';btn.disabled=false;btn.textContent='Log in'}
+    e.preventDefault();btn.disabled=true;btn.textContent=su?'Signing up…':'Logging in…';err.textContent='';
+    try{if(su){sessionStorage.removeItem('stb_svl');await api('/api/signup','POST',{code:cd.value,name:nm.value,username:U.value,password:P.value})}else await login(U.value,P.value);location.href='cross.html'}
+    catch(x){err.textContent=x.status?x.message:'Cannot reach the server. Check your connection.';btn.disabled=false;btn.textContent=su?'Sign up':'Log in'}
   };
 })();
 </script></body></html>

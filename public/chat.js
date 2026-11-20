@@ -1,4 +1,4 @@
-/* Co-Work group chat — a floating dock in the bottom-right corner (Facebook style) with Discord-style content:
+/* CrewCamp group chat — a floating dock in the bottom-right corner (Facebook style) with Discord-style content:
    channels, flat messages, a "who's online" member list. Drag the chat window and the member list pops out.
    Needs auth.js (api helper + theme). No websockets on Netlify, so it polls; the rates are in POLL below (each poll is one
    function call, so lower rates = lighter Netlify usage). While a conversation is live (a message or typing in the last HOT_MS)

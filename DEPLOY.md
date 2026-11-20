@@ -1,8 +1,10 @@
-# Co-Work v2.13.0 — Deploy Guide (GitHub → Netlify)
+# CrewCamp v2.13.2 — Deploy Guide (GitHub → Netlify)
+
+> Site: https://crewcamp.netlify.app — in Netlify go to Site configuration → Change site name and set it to `crewcamp`.
 
 ## 1. Push to GitHub
 ```
-git init && git add . && git commit -m "Co-Work v2.13.0"
+git init && git add . && git commit -m "CrewCamp v2.13.2"
 git branch -M main
 git remote add origin <your-repo-url> && git push -u origin main
 ```

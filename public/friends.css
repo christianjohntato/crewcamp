@@ -1,4 +1,4 @@
-/* Co-Work friends + private messages. Same tokens as chat.css (--panel --bd --soft --acc --acci --sh --ink --ctl), so every theme works. */
+/* CrewCamp friends + private messages. Same tokens as chat.css (--panel --bd --soft --acc --acci --sh --ink --ctl), so every theme works. */
 .cwf{--cw-lift:64px;--cwf-h:min(540px,calc(100dvh - 96px - var(--cw-lift)));--cwf-wh:min(420px,calc(100dvh - 96px - var(--cw-lift)))}
 
 /* ---- Friends button (above the group-chat pill while it is minimized) ---- */

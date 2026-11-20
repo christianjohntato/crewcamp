@@ -1,5 +1,5 @@
-/* ===== Co-Work group chat — floating dock (bottom-right) =====
-   Built only from Co-Work's own tokens (--panel --bd --soft --acc --acci --sh --r --ctl), so every theme
+/* ===== CrewCamp group chat — floating dock (bottom-right) =====
+   Built only from CrewCamp's own tokens (--panel --bd --soft --acc --acci --sh --r --ctl), so every theme
    (White / Dark / Pink / CEPALCO) just works. Layout idea: Facebook chat dock; content idea: Discord. */
 body.cw-on{padding-bottom:calc(78px + var(--safe-b) + var(--cw-lift))}
 body.cw-drag{user-select:none;-webkit-user-select:none;cursor:grabbing}
@@ -94,7 +94,7 @@ body.cw-drag{user-select:none;-webkit-user-select:none;cursor:grabbing}
 .cw-off{margin:14px 8px 0;font-size:.7rem;font-weight:700;opacity:.55}
 .cw-none{margin:10px 8px;font-size:.78rem;font-weight:700;opacity:.6}
 
-/* ---- phones: bottom sheet, like Co-Work's dialogs ---- */
+/* ---- phones: bottom sheet, like CrewCamp's dialogs ---- */
 @media(max-width:700px){
   .cw{--cw-h:min(78dvh,600px)}
   .cw-win,.cw-win.moved,.cw-mem{left:0;right:0;bottom:0;top:auto;width:auto;height:var(--cw-h);border-radius:22px 22px 0 0}

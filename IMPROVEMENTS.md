@@ -1,4 +1,4 @@
-# Co-Work: review & improvements (v2.2)
+# CrewCamp: review & improvements (v2.2)
 
 This document covers the code review, the bug that was fixed, the improvements shipped in this release, and what was
 deliberately left alone. **The UI is unchanged**: same screens, same look, no new buttons or settings.

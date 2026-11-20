@@ -1,4 +1,4 @@
-/* Co-Work friends + private messages (Facebook style).
+/* CrewCamp friends + private messages (Facebook style).
    - Add friend / accept / decline / unfriend from anyone's profile, or from the Friends panel ("Find people").
    - Two people who are friends can chat privately: each conversation opens as a small window docked beside the group chat.
    Rides on chat.js: it adds its own fields to the same GET /api/chat poll (see window.__cwF.params / .apply), so there is

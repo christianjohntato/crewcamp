@@ -1,4 +1,4 @@
-# Co-Work
+# CrewCamp
 
 One app, two calendars:
 

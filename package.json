@@ -1,6 +1,6 @@
 {
-  "name": "co-work",
-  "version": "2.13.0",
+  "name": "crewcamp",
+  "version": "2.13.2",
   "private": true,
   "type": "module",
   "engines": {

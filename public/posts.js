@@ -1,4 +1,4 @@
-/* Co-Work profile posts (Threads style).
+/* CrewCamp profile posts (Threads style).
    Short text posts on a person's profile: the owner writes them, anyone who can see the profile can like and reply.
    Mounted into the "My profile" dialog (app.js) and into the profile viewer (chat.js) via window.__cwP.mount(host, userId).
    Needs auth.js (api helper) and chat.js (window.__cwCore). */
