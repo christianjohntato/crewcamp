@@ -13,15 +13,15 @@
   <div id="gmail" class="sub" hidden style="font-size:.78rem;font-weight:700;margin:-2px 0 4px">✔ Google verified: <span id="gem"></span></div>
   <input id="fn" placeholder="First name" maxlength="30" autocomplete="given-name" hidden>
   <input id="ln" placeholder="Last name" maxlength="30" autocomplete="family-name" hidden>
-  <input id="u" placeholder="User ID" enterkeyhint="next" autocomplete="username" autocapitalize="none" required autofocus>
-  <input id="p" type="password" placeholder="Password" autocomplete="current-password" required>
+  <input id="u" placeholder="User ID" enterkeyhint="next" autocomplete="off" autocapitalize="none" hidden>
+  <input id="p" type="password" placeholder="Password (6+ characters)" autocomplete="new-password" hidden>
   <input id="jc" placeholder="Passkey" maxlength="12" autocapitalize="characters" autocomplete="off" readonly hidden>
   <div id="hint" class="sub" hidden style="font-size:.75rem;margin:-2px 0 4px">Tap Continue with Google to start. A server passkey is optional. Without one you can add a server later from the menu.</div>
   <div id="inv" class="sub" hidden style="font-size:.78rem;font-weight:700;margin:-2px 0 4px">🎟 You were invited to a server. Register to join it. Your passkey is already filled in.</div>
   <div id="err" class="bad" style="font-size:.78rem;font-weight:700;min-height:1.2em"></div>
   <button class="btn pri big" type="submit" hidden>Create account</button>
   <div class="foot" id="alt" style="margin-bottom:6px">Already have an account? <a id="la" href="login.html">Log in</a></div>
-  <div class="foot">Version 2.16.11</div>
+  <div class="foot">Version 2.16.12</div>
   <div id="gwrap" hidden><div class="or" id="orl"><span>or</span></div><div class="gbox"><div id="gbtn" class="gbtn"></div><div id="gblock" class="gblock" hidden></div></div></div>
 </form>
 <script src="https://accounts.google.com/gsi/client" async defer></script>

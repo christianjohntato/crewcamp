@@ -33,7 +33,7 @@ async function currentUser(){   // {user,board} or null. The first call on a pag
 /* ---- No peek at the app before login ----
    Every page except login.html stays blank (theme colour only) until the server confirms the session;
    if there is no session we go straight to the login page, so signed-out visitors never see app content. */
-if(!/(^|\/)login(\.html)?$/.test(location.pathname)){
+if(!/(^|\/)(login|register)(\.html)?$/.test(location.pathname)){
   const g=document.createElement('style');g.id='authGate';g.textContent='body>*{visibility:hidden!important}';document.head.append(g);
   window.__authT=Date.now();window.__authP=api('/api/me').catch(()=>null);
   window.__authP.then(me=>{
@@ -52,7 +52,7 @@ async function logout(){
 }
 // Back/forward cache: never show a signed-in page from memory after logging out.
 addEventListener('pageshow',async e=>{
-  if(!e.persisted||/login\.html$/.test(location.pathname))return;
+  if(!e.persisted||/(login|register)\.html$/.test(location.pathname))return;
   if(!(await api('/api/me').catch(()=>null)))location.replace('login.html');
 });
 
