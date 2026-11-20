@@ -103,3 +103,10 @@ See README ("Profile posts"). New: `posts.js`, `posts.css`; changed: `api.mjs` (
 
 # Show/hide password toggle (👁)
 `auth.js` adds a 👁/🙈 button to every password field (login, change password, admin Users page temporary/reset password). Stored passwords are salted scrypt hashes and cannot be read back, by design; the toggle reveals only what is being typed.
+
+# 2.14.0 – no default server, 3 passkeys, direct links, teams
+- **No default server:** new accounts (Google sign-up) carry `noDef` and belong to NO server (not CEPALCO) until they use a passkey or link. CEPALCO membership = accounts without `noDef` (existing users unchanged). Accounts in no server are sent to the hub (`cross.html`); `GET /me` answers `noServer:true`.
+- **3 passkeys per server (Head / Supervisor / Staff)**, CEPALCO included: fields `adminCode`, `hostCode`, `code` (= Staff, as before). `POST /servers/join {code}` gives the position the passkey stands for. Renew/turn off per position: `POST|DELETE /servers/:id|cepalco/invite {role}`. Server info dialog shows all three with **Copy code / 🔗 Copy link / New / Off**.
+- **Direct link:** `login.html?join=<CODE>` – log in or sign up, then you enter that server with that position. The sign-up form also has an optional passkey field.
+- **Teams:** `GET/POST /api/team` – a Supervisor picks his Staff; a Head picks his Supervisors (`headIds`) and oversees their Staff (Heads already have full power in their server). UI: "👥 My team" in the server menu.
+- Password 👁 toggle hardened (always clickable on the sign-up page).

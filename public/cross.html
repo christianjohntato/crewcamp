@@ -56,6 +56,7 @@ window.openProfile=async()=>{const d=await currentUser();if(d&&d.user&&window.__
   </div>
 </header>
 
+<div id="xNone" hidden style="max-width:1100px;margin:0 auto 12px;padding:14px;border-radius:14px;border:1px dashed var(--bd);font-size:.9rem">🏕 You are not in any server yet. Use a passkey or direct link from a server Head, or press <b>＋ Add a server</b> in the left menu to create or join one.</div>
 <div class="xfil" id="xFil" role="group" aria-label="Filter by source" style="max-width:1100px;margin:0 auto 12px"></div>
 
 <main class="panel cal">
@@ -174,7 +175,7 @@ $('#bBody').onclick=async e=>{
 };
 
 async function load(){
-  try{D=await api('/api/cross');build();renderAll()}
+  try{D=await api('/api/cross');build();renderAll();$('#xNone').hidden=D.servers.length>0}
   catch(e){if(e.status===401)return location.replace('login.html');toast('⚠️ Could not load: '+e.message)}
 }
 (async()=>{

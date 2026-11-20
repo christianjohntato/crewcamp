@@ -4,6 +4,7 @@ const DEF='cepalco',KEY='stb_sv',cur=()=>localStorage.getItem(KEY)||DEF,ONX=/cro
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ROLE={admin:'Head',host:'Supervisor',staff:'Staff'};
 const css=`
+#svDlg .kb{display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid var(--bd,#ddd);border-radius:12px}#svDlg .kb small{opacity:.7;font-size:.72rem}#svDlg .kb .code{font-size:1.05rem;padding:6px}
 #svRail{position:fixed;left:0;top:0;bottom:0;width:72px;z-index:60;display:flex;flex-direction:column;gap:4px;padding:12px 12px;background:var(--panel,#fff);color:var(--ink,#111);border-right:1px solid var(--bd,#ddd);box-shadow:var(--sh,none);overflow:hidden;transition:width .18s ease,box-shadow .18s}
 #svRail:hover,#svRail:focus-within,#svRail.open{width:248px;box-shadow:6px 0 24px rgba(0,0,0,.14)}
 #svRail .svl{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:4px;overflow:hidden auto;scrollbar-width:none;margin:0 -12px;padding:0 12px}
@@ -106,20 +107,28 @@ function dlg(html){let d=document.getElementById('svDlg');if(!d){d=document.crea
 const close=()=>{const d=document.getElementById('svDlg');if(d)d.hidden=true};
 async function act(d,fn){const e=d.querySelector('.err');sessionStorage.removeItem('stb_svl');try{e.textContent='';await fn()}catch(x){e.textContent=x.message||'Something went wrong'}}
 function addDlg(){
-  const d=dlg(`<h3>Add a server</h3><p>Create your own, or join one with an invite code.</p>
+  const d=dlg(`<h3>Add a server</h3><p>Create your own, or join one with a passkey (8 characters) from a server Head.</p>
   <input id="svN" placeholder="Server name" maxlength="30"><div class="r"><button class="btn pri" id="svC">＋ Create server</button></div>
   <p style="text-align:center">— or —</p>
-  <input id="svJ" placeholder="Invite code (8 characters)" maxlength="12" autocapitalize="characters"><div class="r"><button class="btn" id="svJb">Join server</button></div>
+  <input id="svJ" placeholder="Passkey (8 characters)" maxlength="12" autocapitalize="characters"><div class="r"><button class="btn" id="svJb">Join server</button></div>
   <div class="err"></div><div class="r"><button class="btn" id="svX">Close</button></div>`);
   d.querySelector('#svX').onclick=close;
   d.querySelector('#svC').onclick=()=>act(d,async()=>{const r=await api('/api/servers','POST',{name:d.querySelector('#svN').value});go(r.id)});
   d.querySelector('#svJb').onclick=()=>act(d,async()=>{const r=await api('/api/servers/join','POST',{code:d.querySelector('#svJ').value});go(r.id)});
 }
+async function teamDlg(){
+  const s=LIST.find(x=>x.id===cur())||LIST[0],sup=s.role==='host';
+  const d=dlg(`<h3>👥 My team</h3><p>${sup?'Tick the Staff who report to you. They can report to more than one Supervisor.':'Tick the Supervisors who report to you. You then oversee their Staff too.'}</p><div id="tmL" style="display:flex;flex-direction:column;gap:4px;max-height:50dvh;overflow:auto">Loading…</div><div class="err"></div><div class="r"><button class="btn pri" id="tmS">Save team</button><button class="btn" id="svX">Close</button></div>`);
+  d.querySelector('#svX').onclick=close;let C=[];
+  try{C=(await api('/api/team')).candidates}catch(x){d.querySelector('.err').textContent=x.message}
+  const L=d.querySelector('#tmL');L.innerHTML=C.length?C.map(c=>`<label style="display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:10px;background:rgba(127,127,127,.1);font-size:.85rem"><input type="checkbox" data-id="${esc(c.id)}"${c.mine?' checked':''} style="width:auto"><span style="flex:1">${esc(c.name)}</span><small style="opacity:.6">${c.staff!=null?c.staff+' staff':c.others?'also with '+c.others+' other':''}</small></label>`).join(''):`<p>No ${sup?'Staff':'Supervisors'} in this server yet. Share a ${sup?'Staff':'Supervisor'} passkey from Server info.</p>`;
+  d.querySelector('#tmS').onclick=()=>act(d,async()=>{const add=[],remove=[];L.querySelectorAll('input').forEach(i=>{const c=C.find(x=>x.id===i.dataset.id);if(i.checked&&!c.mine)add.push(c.id);if(!i.checked&&c.mine)remove.push(c.id)});await api('/api/team','POST',{add,remove});close()});
+}
 function infoDlg(){
   const s=LIST.find(x=>x.id===cur())||LIST[0],isH=s.role==='admin',def=s.id===DEF;
   const d=dlg(`<h3>${esc(s.name)}</h3><p>Created by <b>${esc(s.createdBy)}</b> · ${s.members} member${s.members===1?'':'s'} · your position: <b>${ROLE[s.role]||s.role}</b></p>
   ${def?'<p>Positions (Head / Supervisor / Staff) and custom roles (e.g. COLLECTION, BILLING) belong to this server.</p>':''}
-  ${s.code?`<label>Invite code (people join as Staff)</label><div class="code">${esc(s.code)}</div><div class="r"><button class="btn" id="svCp">Copy</button><button class="btn" id="svRs">New code</button>${def?'<button class="btn" id="svOff">Turn off</button>':''}</div>${def?'<p style="font-size:.75rem;opacity:.75">New people sign up on the login page with this code.</p>':''}`:(def&&isH?'<label>Invite code</label><p style="font-size:.78rem;opacity:.8">No code yet — create one so new people can sign up on the login page.</p><div class="r"><button class="btn pri" id="svRs">Create invite code</button></div>':'')}
+  ${isH?'<label>Passkeys &amp; direct links <span style="opacity:.7">(share the one for the position you want to give)</span></label><div id="svKeys"></div>':''}
   ${isH?`<label>Server logo <span style="opacity:.7">(one change every ${LOGO_DAYS} days)</span></label><div class="r" style="align-items:center;flex-wrap:nowrap"><span class="lgp" id="svLg" style="${sbg(s)}">${sini(s)}${limg(s)}</span><button class="btn" id="svLp" type="button">Choose image</button><button class="btn pri" id="svLs" type="button" disabled>Save logo</button></div><input type="file" id="svLf" accept="image/jpeg,image/png,image/webp" hidden><p id="svLn"></p>`:''}
   ${!def&&isH?`<label>Rename server</label><input id="svRn" value="${esc(s.name)}" maxlength="30"><div class="r"><button class="btn" id="svRb">Save name</button></div>`:''}
   ${isH?'<div class="r"><a class="btn" href="users.html">Manage people &amp; roles</a></div>':''}
@@ -127,6 +136,15 @@ function infoDlg(){
   ${!def&&(s.owner||SUPER)?'<div class="r"><button class="btn danger" id="svD">Delete server</button></div>':''}
   <div class="err"></div><div class="r"><button class="btn" id="svX">Close</button></div>`);
   const $=q=>d.querySelector(q);$('#svX').onclick=close;
+  if($('#svKeys')){
+    const P=[['admin','👑 Head','Can manage the whole server and picks his Supervisors'],['host','🧭 Supervisor','Can assign tasks and picks his own Staff'],['staff','🙋 Staff','Sees and completes assigned tasks']],link=c=>location.origin+'/login.html?join='+c;
+    const paint=()=>{const cs=s.codes||{staff:s.code||''};$('#svKeys').innerHTML=P.map(([r,n,t])=>`<div class="kb"><b>${n}</b><small>${t}</small>${cs[r]?`<div class="code">${esc(cs[r])}</div><div class="r"><button class="btn" data-k="cp" data-r="${r}">Copy code</button><button class="btn" data-k="ln" data-r="${r}">🔗 Copy link</button><button class="btn" data-k="rs" data-r="${r}">New</button>${def||r!=='staff'?`<button class="btn" data-k="off" data-r="${r}">Off</button>`:''}</div>`:`<div class="r"><button class="btn" data-k="rs" data-r="${r}">Create ${n.split(' ')[1]} passkey</button></div>`}</div>`).join('')};
+    paint();
+    $('#svKeys').onclick=e=>{const b=e.target.closest('[data-k]');if(!b)return;const r=b.dataset.r,cs=s.codes=s.codes||{staff:s.code||''};
+      if(b.dataset.k==='cp'||b.dataset.k==='ln'){const v=b.dataset.k==='cp'?cs[r]:link(cs[r]);return navigator.clipboard&&navigator.clipboard.writeText(v).then(()=>{const t=b.textContent;b.textContent='Copied ✓';setTimeout(()=>b.textContent=t,1200)})}
+      if(b.dataset.k==='off'&&!confirm('Turn off this passkey? Its code and link stop working until you create a new one.'))return;
+      act(d,async()=>{const u='/api/servers/'+(def?'cepalco':s.id)+'/invite';if(b.dataset.k==='off'){await api(u,'DELETE',{role:r});cs[r]=''}else{cs[r]=(await api(u,'POST',{role:r})).code}if(r==='staff')s.code=cs[r];paint()})};
+  }
   if($('#svLp')){
     const left=s.logoAt?s.logoAt+LOGO_MS-Date.now():0,locked=left>0;let pic=null;
     $('#svLn').textContent=locked?`🔒 Changed recently. You can change it again in ${Math.ceil(left/864e5)} day${Math.ceil(left/864e5)===1?'':'s'}.`:(s.logoAt?'You can change the logo now. After saving, it locks for 15 days.':'Add a logo. After saving, it can be changed once every 15 days.');
@@ -136,9 +154,6 @@ function infoDlg(){
       pic=await shrink(f);$('#svLg').innerHTML=`<img alt="" src="${pic}">`;$('#svLs').disabled=false});
     $('#svLs').onclick=()=>pic&&act(d,async()=>{$('#svLs').disabled=true;try{await api('/api/servers/'+s.id+'/logo','POST',{image:pic});location.reload()}catch(x){$('#svLs').disabled=false;throw x}});
   }
-  if($('#svCp'))$('#svCp').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(s.code).then(()=>{$('#svCp').textContent='Copied ✓'});
-  if($('#svRs'))$('#svRs').onclick=()=>act(d,async()=>{const r=await api('/api/servers/'+(def?'cepalco':s.id)+'/invite','POST',{});s.code=r.code;infoDlg()});
-  if($('#svOff'))$('#svOff').onclick=()=>{if(!confirm('Turn off the invite code? Nobody can sign up with it until you create a new one.'))return;act(d,async()=>{await api('/api/servers/cepalco/invite','DELETE');s.code='';infoDlg()})};
   if($('#svRb'))$('#svRb').onclick=()=>act(d,async()=>{await api('/api/servers/'+s.id,'PUT',{name:$('#svRn').value});location.reload()});
   if($('#svL'))$('#svL').onclick=()=>confirm('Leave "'+s.name+'"?')&&act(d,async()=>{await api('/api/servers/'+s.id+'/leave','POST',{});go(DEF)});
   if($('#svD'))$('#svD').onclick=()=>confirm('Delete "'+s.name+'" with its chat, roles and shared tasks? This cannot be undone.')&&act(d,async()=>{await api('/api/servers/'+s.id,'DELETE');go(DEF)});
@@ -245,10 +260,11 @@ function build(){
    +'<hr><button class="svi fr" id="svFr" title="Friends &amp; private messages" aria-label="Friends and private messages"><i>🧑‍🤝‍🧑</i><em class="svb" hidden></em><span>Friends<small>Private messages</small></span></button>'
    +'<button class="svi cfg" id="svTh" title="Theme" aria-label="Theme" aria-haspopup="true" aria-expanded="false"><i style="font-size:1.1rem">🎨</i><span>Theme<small>Colors &amp; look</small></span></button>'
    +(SUPER?'<button class="svi cfg" id="svAdm" title="Admin: all servers"><i>🛡</i><span>Admin<small>All servers · manage anything</small></span></button>':'')
+   +((LIST.find(x=>x.id===cur())||{}).role==='host'||(LIST.find(x=>x.id===cur())||{}).role==='admin'?'<button class="svi" id="svTm" title="My team"><i>👥</i><span>My team<small>Pick your '+((LIST.find(x=>x.id===cur())||{}).role==='host'?'staff':'supervisors')+'</small></span></button>':'')
    +'<button class="svi cfg" id="svCfg" title="Server info"><i>ⓘ</i><span>Server info</span></button>'
    +`<button class="svi me" id="svMe" title="My profile (all servers)"><span class="av">${av||esc(ini(nm))}</span><span>${esc(nm)}<small>My profile · all servers</small></span></button>`
    +'<button class="svi out" id="svOut" title="Log out"><i>⎋</i><span>Log out</span></button>';
-  r.onclick=e=>{const b=e.target.closest('.svi');if(!b)return;if(b.id==='svTh'){e.stopPropagation();r.classList.remove('open');return TH.toggle()}if(b.id==='svNt'){e.stopPropagation();r.classList.remove('open');return NT.toggle()}if(b.id==='svCross')return ONX?r.classList.remove('open'):location.assign('cross.html');if(b.id==='svAdd')return addDlg();if(b.id==='svCfg')return infoDlg();if(b.id==='svAdm')return location.assign('admin-servers.html');if(b.id==='svFr'){r.classList.remove('open');return window.__cwF?window.__cwF.toggle():location.assign('index.html?friends=1')}if(b.id==='svOut')return logout();if(b.id==='svMe')return window.openProfile?window.openProfile():location.assign('index.html?profile=1');go(b.dataset.id)};
+  r.onclick=e=>{const b=e.target.closest('.svi');if(!b)return;if(b.id==='svTh'){e.stopPropagation();r.classList.remove('open');return TH.toggle()}if(b.id==='svNt'){e.stopPropagation();r.classList.remove('open');return NT.toggle()}if(b.id==='svCross')return ONX?r.classList.remove('open'):location.assign('cross.html');if(b.id==='svAdd')return addDlg();if(b.id==='svCfg')return infoDlg();if(b.id==='svTm'){r.classList.remove('open');return teamDlg()}if(b.id==='svAdm')return location.assign('admin-servers.html');if(b.id==='svFr'){r.classList.remove('open');return window.__cwF?window.__cwF.toggle():location.assign('index.html?friends=1')}if(b.id==='svOut')return logout();if(b.id==='svMe')return window.openProfile?window.openProfile():location.assign('index.html?profile=1');go(b.dataset.id)};
   document.body.append(r);if(window.__cwF)window.__cwF.badges();NT.init();TH.init();
   const t=document.createElement('button');t.id='svTab';t.textContent='☰';t.setAttribute('aria-label','Servers');t.onclick=e=>{e.stopPropagation();r.classList.toggle('open')};document.body.append(t);
   document.addEventListener('click',e=>{if(!r.contains(e.target))r.classList.remove('open')});

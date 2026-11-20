@@ -14,6 +14,9 @@ const svKey = (id, k) => id !== DEF_SV && SCOPED.test(k) ? `sv:${id}:${k}` : k;
 const scoped = (b, cur) => ({ get: (k, o) => b.get(svKey(cur(), k), o), getWithMetadata: (k, o) => b.getWithMetadata(svKey(cur(), k), o), setJSON: (k, d, o) => b.setJSON(svKey(cur(), k), d, o), delete: k => b.delete(svKey(cur(), k)) });
 const LOGO_COOLDOWN = 15 * 864e5, LOGO_MAX = 24 * 1024;   // server logo: one change per 15 days; the browser sends a ~96px WebP (typically 2-6 KB), hard cap 24 KB
 const LOGO_MAGIC = { 'image/jpeg': b => b[0] === 0xff && b[1] === 0xd8, 'image/png': b => b.subarray(1, 4).toString() === 'PNG', 'image/webp': b => b.subarray(0, 4).toString() === 'RIFF' && b.subarray(8, 12).toString() === 'WEBP' };
+const KEYROLE = [['adminCode', 'admin'], ['hostCode', 'host'], ['code', 'staff']];   // 3 passkeys per server: Head / Supervisor / Staff ('code' = the original staff invite code)
+const roleByCode = (rec, code) => { for (const [f, role] of KEYROLE) if (rec && rec[f] && same(rec[f], code)) return role; return null; };
+const codesOf = rec => ({ admin: rec?.adminCode || '', host: rec?.hostCode || '', staff: rec?.code || '' });
 const newCode = () => Array.from(randomBytes(8), x => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[x % 32]).join('');
 const J = (d, s = 200, h = {}) => new Response(JSON.stringify(d), { status: s, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...h } });
 const today = () => new Date(Date.now() + 8 * 36e5).toISOString().slice(0, 10);   // Manila date (UTC+8), not the server's UTC date
@@ -116,7 +119,7 @@ const ensureTagChannels = (st, tags) => mutate(st, 'chat:channels', () => [{ id:
 const pub = (u, all) => ({
   id: u.id, username: u.username, name: u.name, role: u.role, active: u.active, created: u.created, mustChange: !!u.mustChange,
   avatarAt: u.avatarAt || 0, avatarNext: u.avatarAt ? u.avatarAt + AVATAR_COOLDOWN : 0, profileHidden: !!u.profileHidden,
-  hostIds: u.role === 'staff' ? u.hostIds : [], tagIds: u.tagIds || [],
+  hostIds: u.role === 'staff' ? u.hostIds : [], headIds: u.role === 'host' ? (u.headIds || []) : [], tagIds: u.tagIds || [],
   hostNames: u.role === 'staff' ? u.hostIds.map(id => all.find(x => x.id === id)?.name).filter(Boolean) : [],
 });
 // A person who set their profile to "hidden for viewing" shows only their name and role to others; Heads (admins) and the person themself still see everything.
@@ -212,7 +215,8 @@ export default async (req) => {
       const fk = 'fail:signup:' + ip, f = await st.get(fk, { type: 'json' }), now = Date.now();
       if (f && f.until > now) throw H('Too many wrong codes. Try again in 15 minutes.', 429);
       const meta = await bs.get('svmeta:cepalco', { type: 'json' });
-      if (code.length !== 8 || !meta?.code || !same(meta.code, code)) {
+      const sRole = code.length === 8 ? roleByCode(meta, code) : null;
+      if (!sRole) {
         const n = (f && !(f.until && f.until <= now) ? f.count : 0) + 1;
         await st.setJSON(fk, { count: n, until: n >= MAX_FAILS ? now + LOCK_MS : 0 });
         await new Promise(r => setTimeout(r, 400));
@@ -226,7 +230,7 @@ export default async (req) => {
         if (list.some(x => x.username === un)) throw H('Username already exists.');
         if (list.length >= 500) throw H('This server is full.');
         const salt = randomBytes(8).toString('hex');
-        nu = { id: 'u_' + randomBytes(6).toString('hex'), username: un, name: String(body.name || '').trim().slice(0, 60) || un, role: 'staff', active: true, salt, hash: hp(body.password, salt), created: today(), hostIds: [], tagIds: [] };
+        nu = { id: 'u_' + randomBytes(6).toString('hex'), username: un, name: String(body.name || '').trim().slice(0, 60) || un, role: sRole, active: true, salt, hash: hp(body.password, salt), created: today(), hostIds: [], tagIds: [] };
         list.push(nu);
       });
       if (f) await st.delete(fk);
@@ -301,7 +305,7 @@ export default async (req) => {
         if (list.length >= 500) throw H('This server is full.');
         if (list.some(x => x.username === sd.un)) throw H('Username already exists.');
         const salt = randomBytes(8).toString('hex');
-        u = { id: 'u_' + randomBytes(6).toString('hex'), username: sd.un, name: sd.nm, role: 'staff', active: true, salt, hash: hp(sd.pw, salt), created: today(), hostIds: [], tagIds: [], email, googleSub: g.sub };   // the password they chose also works for the normal Log in form
+        u = { id: 'u_' + randomBytes(6).toString('hex'), username: sd.un, name: sd.nm, role: 'staff', active: true, salt, hash: hp(sd.pw, salt), created: today(), hostIds: [], tagIds: [], noDef: true, email, googleSub: g.sub };   // new accounts belong to NO server until they use a passkey / link   // the password they chose also works for the normal Log in form
         list.push(u); created = true;
       });
       const token = randomBytes(24).toString('hex');
@@ -358,30 +362,39 @@ export default async (req) => {
     if (path === '/servers' && m === 'GET') {
       const list = await srvList();
       const dm = await bs.get('svmeta:cepalco', { type: 'json' });
-      const def = { logoAt: dm?.logoAt || 0, code: (meG.role === 'admin' || isSuper) ? (dm?.code || '') : undefined, id: DEF_SV, name: SV_NAME, owner: meG.id === DEFAULT_ADMIN, role: meG.role, members: allUs.filter(u => u.active).length, createdBy: allUs.find(u => u.id === DEFAULT_ADMIN)?.name || 'Administrator', isDefault: true };
-      const mine = list.filter(x => x.members[meG.id]).map(x => ({ logoAt: x.logoAt || 0, id: x.id, name: x.name, owner: x.ownerId === meG.id, role: x.members[meG.id].role, members: Object.keys(x.members).length, createdBy: allUs.find(u => u.id === x.ownerId)?.name || 'Unknown', ...(x.members[meG.id].role === 'admin' ? { code: x.code } : {}) }));
-      return J({ servers: [def, ...mine], superAdmin: isSuper });
+      const def = { logoAt: dm?.logoAt || 0, ...((meG.role === 'admin' || isSuper) ? { code: dm?.code || '', codes: codesOf(dm) } : {}), id: DEF_SV, name: SV_NAME, owner: meG.id === DEFAULT_ADMIN, role: meG.role, members: allUs.filter(u => u.active && !u.noDef).length, createdBy: allUs.find(u => u.id === DEFAULT_ADMIN)?.name || 'Administrator', isDefault: true };
+      const mine = list.filter(x => x.members[meG.id]).map(x => ({ logoAt: x.logoAt || 0, id: x.id, name: x.name, owner: x.ownerId === meG.id, role: x.members[meG.id].role, members: Object.keys(x.members).length, createdBy: allUs.find(u => u.id === x.ownerId)?.name || 'Unknown', ...(x.members[meG.id].role === 'admin' ? { code: x.code, codes: codesOf(x) } : {}) }));
+      return J({ servers: [...(meG.noDef && !isSuper ? [] : [def]), ...mine], superAdmin: isSuper, noServer: !!meG.noDef && !isSuper && !mine.length });
     }
     if (path === '/servers' && m === 'POST') {
       const name = svName(body.name);
       const out = await mutSrv(list => {
         if (list.filter(x => x.ownerId === meG.id).length >= MAX_OWN) throw H(`You can own up to ${MAX_OWN} servers.`);
-        const x = { id: 's_' + randomBytes(4).toString('hex'), name, ownerId: meG.id, created: today(), code: newCode(), members: { [meG.id]: { role: 'admin', hostIds: [], tagIds: [] } } };
+        const x = { id: 's_' + randomBytes(4).toString('hex'), name, ownerId: meG.id, created: today(), code: newCode(), hostCode: newCode(), adminCode: newCode(), members: { [meG.id]: { role: 'admin', hostIds: [], tagIds: [] } } };
         list.push(x); return x;
       });
       return J({ id: out.id, name: out.name, code: out.code }, 201);
     }
-    if (path === '/servers/join' && m === 'POST') {
+    if (path === '/servers/join' && m === 'POST') {   // any of a server's 3 passkeys: Head / Supervisor / Staff
       const code = String(body.code || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (code.length !== 8) throw H('Enter the 8-character invite code.');
+      if (code.length !== 8) throw H('Enter the 8-character passkey.');
+      const dmeta = await bs.get('svmeta:cepalco', { type: 'json' }), dRole = roleByCode(dmeta, code);
+      if (dRole) {   // CEPALCO Server: membership = account without the noDef flag
+        let already = false;
+        await mutUsers(st, list => { const u = list.find(x => x.id === meG.id); if (!u.noDef) { already = true; return; } delete u.noDef; u.role = dRole; u.hostIds = []; });
+        if (already) throw H('You are already in that server.');
+        return J({ id: DEF_SV, name: SV_NAME, role: dRole });
+      }
+      let role = 'staff';
       const out = await mutSrv(list => {
-        const x = list.find(v => same(v.code, code));
-        if (!x) throw H('Invalid invite code.', 404);
+        const x = list.find(v => roleByCode(v, code));
+        if (!x) throw H('Invalid passkey.', 404);
         if (x.members[meG.id]) throw H('You are already in that server.');
         if (Object.keys(x.members).length >= MAX_MEM) throw H('That server is full.');
-        x.members[meG.id] = { role: 'staff', hostIds: [], tagIds: [] }; return x;
+        role = roleByCode(x, code);
+        x.members[meG.id] = { role, hostIds: [], tagIds: [] }; return x;
       });
-      return J({ id: out.id, name: out.name });
+      return J({ id: out.id, name: out.name, role });
     }
     const lgm = path.match(/^\/servers\/(cepalco|s_[a-f0-9]{8})\/logo$/);
     if (lgm && m === 'POST') {   // change the server logo (server Head); once per 15 days, enforced here
@@ -408,8 +421,9 @@ export default async (req) => {
     }
     if (path === '/servers/cepalco/invite' && (m === 'POST' || m === 'DELETE')) {   // CEPALCO sign-up code: create / renew (POST) or turn off (DELETE)
       if (meG.role !== 'admin' && !isSuper) throw H('Only a server Head can do that.', 403);
-      const code = await mutate(bs, 'svmeta:cepalco', () => ({}), rec => { if (m === 'POST') rec.code = newCode(); else delete rec.code; return rec.code || null; });
-      return J({ code });
+      const f = (KEYROLE.find(([, rl]) => rl === body.role) || KEYROLE[2])[0];   // which passkey (default: staff)
+      const code = await mutate(bs, 'svmeta:cepalco', () => ({}), rec => { if (m === 'POST') rec[f] = newCode(); else delete rec[f]; return rec[f] || null; });
+      return J({ code, role: KEYROLE.find(([g]) => g === f)[1] });
     }
     const svm = path.match(/^\/servers\/(s_[a-f0-9]{8})(?:\/(leave|invite))?$/);
     if (svm) {
@@ -420,7 +434,7 @@ export default async (req) => {
         return J({ ok: 1 });
       }
       if (act === 'invite' && m === 'POST') {   // new invite code (server Head)
-        const code = await mutSrv(list => { const x = list.find(v => v.id === sid); if (!x || (x.members[meG.id]?.role !== 'admin' && !isSuper)) throw H('Only a server Head can do that.', 403); return (x.code = newCode()); });
+        const code = await mutSrv(list => { const x = list.find(v => v.id === sid); if (!x || (x.members[meG.id]?.role !== 'admin' && !isSuper)) throw H('Only a server Head can do that.', 403); const f = (KEYROLE.find(([, rl]) => rl === body.role) || KEYROLE[2])[0]; return (x[f] = newCode()); });
         return J({ code });
       }
       if (act === 'leave' && m === 'POST') {
@@ -520,19 +534,19 @@ export default async (req) => {
         const [tg, ch, sh] = await Promise.all(['tags', 'chat:channels', 'shared'].map(k => bs.get(k, { type: 'json' })));
         const dmeta = await bs.get('svmeta:cepalco', { type: 'json' });
         const def = { id: DEF_SV, code: dmeta?.code || '', name: SV_NAME, isDefault: true, created: '', ownerId: DEFAULT_ADMIN, owner: nameOf(DEFAULT_ADMIN) || 'Administrator', roles: (tg || []).map(t => t.name), channels: (ch || [{ id: 'general', name: 'general' }]).filter(c => !c.tag).map(c => c.name), tasks: (sh?.tasks || []).length,
-          members: allUs.filter(u => u.active).map(u => ({ id: u.id, name: u.name || u.username, username: u.username, role: u.role, roles: (u.tagIds || []).map(t => (tg || []).find(g => g.id === t)?.name).filter(Boolean) })) };
+          members: allUs.filter(u => u.active && !u.noDef).map(u => ({ id: u.id, name: u.name || u.username, username: u.username, role: u.role, roles: (u.tagIds || []).map(t => (tg || []).find(g => g.id === t)?.name).filter(Boolean) })) };
         return J({ servers: [def, ...(await Promise.all((await srvList()).map(detail)))] });
       }
       if (path === '/admin/servers' && m === 'POST') {   // create a server for anyone (default: for yourself)
         const name = svName(body.name), un = String(body.owner || '').trim().toLowerCase();
         const own = un ? allUs.find(u => u.username === un && u.active) : meG;
         if (!own) throw H('No active account with that username.', 404);
-        const out = await mutSrv(list => { const x = { id: 's_' + randomBytes(4).toString('hex'), name, ownerId: own.id, created: today(), code: newCode(), members: { [own.id]: { role: 'admin', hostIds: [], tagIds: [] } } }; list.push(x); return x; });
+        const out = await mutSrv(list => { const x = { id: 's_' + randomBytes(4).toString('hex'), name, ownerId: own.id, created: today(), code: newCode(), hostCode: newCode(), adminCode: newCode(), members: { [own.id]: { role: 'admin', hostIds: [], tagIds: [] } } }; list.push(x); return x; });
         return J({ id: out.id, name: out.name, code: out.code }, 201);
       }
       if (path === '/admin/notes' && m === 'GET') {   // every account's personal notes + every server's shared tasks, tagged by server (read-only)
         const list = await srvList();
-        const svs = [{ id: DEF_SV, name: SV_NAME, members: allUs.filter(u => u.active).map(u => u.id) }, ...list.map(x => ({ id: x.id, name: x.name, members: Object.keys(x.members || {}) }))];
+        const svs = [{ id: DEF_SV, name: SV_NAME, members: allUs.filter(u => u.active && !u.noDef).map(u => u.id) }, ...list.map(x => ({ id: x.id, name: x.name, members: Object.keys(x.members || {}) }))];
         const users = allUs.map(u => ({ id: u.id, name: u.name || u.username, username: u.username, role: u.role, active: u.active, servers: svs.filter(v => v.members.includes(u.id)).map(v => v.id) }));
         const tasks = [], shared = [];
         for (const v of svs) {
@@ -557,13 +571,13 @@ export default async (req) => {
     // ----- cross-server calendar: my personal notes + every task assigned to me, across ALL my servers (global; ignores X-Server) -----
     if (path === '/cross' && m === 'GET') {
       const list = await srvList();
-      const svs = [{ id: DEF_SV, name: SV_NAME }, ...list.filter(x => x.members[meG.id]).map(x => ({ id: x.id, name: x.name }))];
+      const svs = [...(meG.noDef && !isSuper ? [] : [{ id: DEF_SV, name: SV_NAME }]), ...list.filter(x => x.members[meG.id]).map(x => ({ id: x.id, name: x.name }))];
       const tasks = [], personal = [];
       for (const sv of svs) {
         let usS = allUs, meS = meG;
         if (sv.id !== DEF_SV) {
           const x = list.find(v => v.id === sv.id);
-          usS = allUs.filter(u => u.active && x.members[u.id]).map(u => { const mm = x.members[u.id]; return { ...u, role: mm.role, hostIds: mm.role === 'staff' ? mm.hostIds : [], tagIds: mm.tagIds }; });
+          usS = allUs.filter(u => u.active && x.members[u.id]).map(u => { const mm = x.members[u.id]; return { ...u, role: mm.role, hostIds: mm.role === 'staff' ? mm.hostIds : [], headIds: mm.role === 'host' ? (mm.headIds || []) : [], tagIds: mm.tagIds }; });
           meS = usS.find(u => u.id === meG.id);
           if (!meS) continue;
         }
@@ -578,14 +592,16 @@ export default async (req) => {
       return J({ servers: svs, personal, shared: tasks });
     }
 
+    if (path === '/me' && m === 'GET' && meG.noDef && !isSuper && !req.headers.get('x-server')) return J({ user: { ...pub(meG, allUs), noServer: true }, server: null, board: null });   // no server yet: the app sends them to the hub to join one
+
     // ----- pick the active server: X-Server header (default = CEPALCO). 'us' = the people of THIS server with their server position/roles -----
-    let us = allUs;
+    let us = allUs.filter(u => !u.noDef);   // CEPALCO members only (new sign-ups are in no server until they join one)
     const want = req.headers.get('x-server') || DEF_SV;
     if (want !== DEF_SV) {
       const x = SV_ID.test(want) ? (await srvList()).find(v => v.id === want) : null;
       if (!x || !(x.members[meG.id] || isSuper)) throw H('You are not a member of that server.', 403);
       SV = want;
-      us = allUs.filter(u => u.active && x.members[u.id]).map(u => { const mm = x.members[u.id]; return { ...u, role: mm.role, hostIds: mm.role === 'staff' ? mm.hostIds : [], tagIds: mm.tagIds }; });
+      us = allUs.filter(u => u.active && x.members[u.id]).map(u => { const mm = x.members[u.id]; return { ...u, role: mm.role, hostIds: mm.role === 'staff' ? mm.hostIds : [], headIds: mm.role === 'host' ? (mm.headIds || []) : [], tagIds: mm.tagIds }; });
     }
     const me = us.find(u => u.id === meG.id) || (isSuper && SV !== DEF_SV ? { ...meG, role: 'admin', hostIds: [], tagIds: [] } : null);   // platform admin inside a server he is not a member of: acts as Head, is not listed as a member
     if (!me) throw H('You are not a member of that server.', 403);
@@ -912,6 +928,20 @@ export default async (req) => {
         list.splice(i, 1);
       });
       await st.delete('chat:' + chm[1]);
+      return J({ ok: 1 });
+    }
+
+    // ----- my team: a Supervisor picks his Staff; a Head picks his Supervisors (and so oversees their Staff) -----
+    if (path === '/team' && (m === 'GET' || m === 'POST')) {
+      if (me.role !== 'host' && me.role !== 'admin') throw H('Only Supervisors and Heads have a team.', 403);
+      const kind = me.role === 'host' ? 'staff' : 'host', field = me.role === 'host' ? 'hostIds' : 'headIds';
+      if (m === 'GET') return J({ kind, candidates: us.filter(u => u.active && u.role === kind && u.id !== me.id).map(u => { const l = (me.role === 'host' ? u.hostIds : u.headIds) || []; return { id: u.id, name: u.name || u.username, mine: l.includes(me.id), others: l.filter(h => h !== me.id).length, staff: kind === 'host' ? us.filter(x => x.role === 'staff' && (x.hostIds || []).includes(u.id)).length : undefined }; }) });
+      const add = uniq(body.add), rem = uniq(body.remove);
+      const edit = fn => SV === DEF_SV ? mutUsers(st, list => fn(id => list.find(x => x.id === id && x.active && !x.noDef))) : mutSrv(list => { const x = list.find(v => v.id === SV); fn(id => x.members[id]); });
+      await edit(get => {
+        for (const id of add) { const rc = get(id); if (rc && rc.role === kind) rc[field] = uniq([...(rc[field] || []), me.id]); }
+        for (const id of rem) { const rc = get(id); if (rc) rc[field] = (rc[field] || []).filter(h => h !== me.id); }
+      });
       return J({ ok: 1 });
     }
 

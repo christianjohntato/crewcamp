@@ -443,5 +443,5 @@
   win.hidden = !S.open; $('#cwPill').hidden = S.open;
   if (S.open) applyPos();
   renderLog(); renderAll();
-  if (CROSS) loadServers().then(poll); else { poll(); loadServers(); }   // on the cross page, make sure the remembered server is still mine before the first poll
+  if (CROSS) loadServers().then(() => S.svs.length && poll()); else { poll(); loadServers(); }   // on the cross page, make sure the remembered server is still mine before the first poll
 })();

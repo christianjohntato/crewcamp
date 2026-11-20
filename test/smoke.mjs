@@ -12,13 +12,15 @@ export function getStore() { return {
     if (o.onlyIfNew && r) return { modified: false };
     if (o.onlyIfMatch && (!r || r.e !== o.onlyIfMatch)) return { modified: false };
     data.set(k, { v: structuredClone(v), e: String(++ver) }); return { modified: true }; },
-  async delete(k) { data.delete(k); } }; }`;
+  async delete(k) { data.delete(k); } }; }
+export { data };`;
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'stb-'));
 fs.writeFileSync(path.join(tmp, 'blobs-mock.mjs'), MOCK);
 fs.writeFileSync(path.join(tmp, 'api.mjs'), fs.readFileSync(path.join(here, '../netlify/functions/api.mjs'), 'utf8').replace("'@netlify/blobs'", "'./blobs-mock.mjs'"));
 process.env.ADMIN_INITIAL_PASSWORD = 'test-password-123';
+const mockData = (await import(pathToFileURL(path.join(tmp, 'blobs-mock.mjs')).href)).data;
 const handler = (await import(pathToFileURL(path.join(tmp, 'api.mjs')).href)).default;
 
 // a "browser": own cookie jar, calls the API exactly like public/auth.js (JSON header always, body only if given)
@@ -389,6 +391,14 @@ console.log('Servers');
   check('servers: invalid invite code is 404', (await N('/servers/join', 'POST', { code: 'ZZZZZZZZ' })).status === 404);
   check('servers: join by invite code makes you Staff', (await N('/servers/join', 'POST', { code: CODE.toLowerCase() })).status === 200 && (await N('/me' + q)).d.user.role === 'staff');
   check('servers: joining twice is refused', (await N('/servers/join', 'POST', { code: CODE })).status === 400);
+  const ks = (await SS('/servers')).d.servers.find(x => x.id === SID).codes;
+  check('servers: a server has 3 passkeys (Head / Supervisor / Staff), all different', ks.admin.length === 8 && ks.host.length === 8 && ks.staff === CODE && new Set([ks.admin, ks.host, ks.staff]).size === 3);
+  check('servers: the Supervisor passkey makes you a Supervisor', (await H2('/servers/join', 'POST', { code: ks.host })).d.role === 'host' && (await H2('/me' + q)).d.user.role === 'host');
+  const tm = (await H2('/team' + q)).d, nid = (await N('/me' + q)).d.user.id;
+  check('team: a Supervisor can pick his Staff', tm.kind === 'staff' && tm.candidates.some(c => c.id === nid) && (await H2('/team' + q, 'POST', { add: [nid] })).status === 200 && (await H2('/team' + q)).d.candidates.find(c => c.id === nid).mine === true);
+  check('team: a Head picks his Supervisors; Staff cannot have a team', (await SS('/team' + q, 'POST', { add: [(await H2('/me' + q)).d.user.id] })).status === 200 && (await SS('/team' + q)).d.candidates.some(c => c.mine) && (await N('/team' + q)).status === 403);
+  check('team: removing works', (await H2('/team' + q, 'POST', { remove: [nid] })).status === 200 && !(await H2('/team' + q)).d.candidates.find(c => c.id === nid).mine);
+  check('servers: only a Head can renew a given passkey', (await SS('/servers/' + SID + '/invite', 'POST', { role: 'admin' })).d.code !== ks.admin && (await H2('/servers/' + SID + '/invite', 'POST', { role: 'admin' })).status === 403);
   check('servers: a server Staff cannot manage members', (await N('/users' + q, 'POST', { username: 'staff2' })).status === 403);
   check('servers: only the Head sees the invite code', (await SS('/servers')).d.servers.find(x => x.id === SID).code === CODE && (await N('/servers')).d.servers.find(x => x.id === SID).code === undefined);
   // friends, DMs and profiles are NOT bound to a server: head2 is a friend of staff2 but is not in this server
@@ -454,6 +464,22 @@ console.log('Platform admin (default admin)');
   check('cepalco code: turning it off blocks sign-up', (await N('/servers/cepalco/invite', 'DELETE')).status === 200 && (await NS('/signup', 'POST', { code: ic.d.code, username: 'late', password: 'secret123' })).status === 404);
   check('cepalco: Add member (existing account) sets position/role, unknown username is refused', await (async () => { const me = (await N('/admin/accounts')).d.accounts.find(u => u.username === 'newbie'); return (await N('/users', 'POST', { username: 'newbie', role: 'host' })).status === 200 && (await N('/users')).d.users.find(u => u.username === 'newbie').role === 'host' && (await N('/users', 'POST', { username: 'does-not-exist', role: 'staff' })).status === 404 && !!me; })());
   check('accounts: admin cannot delete himself', (await N('/admin/accounts/u_admin', 'DELETE')).status === 400);
+}
+
+console.log('New accounts belong to no server');
+{
+  await N('/users', 'POST', { username: 'fresh1', name: 'Fresh One', role: 'staff', password: 'fresh-pass-1' });
+  const rec = mockData.get('users'); rec.v.find(u => u.username === 'fresh1').noDef = true;   // what Google sign-up does: account exists, no server yet
+  const F = browser(); await F('/login', 'POST', { username: 'fresh1', password: 'fresh-pass-1' });
+  const me0 = await F('/me');
+  check('new account: no server yet (me says noServer, not CEPALCO)', me0.status === 200 && me0.d.user.noServer === true);
+  check('new account: cannot enter CEPALCO by default', (await F('/chat')).status === 403 && (await F('/users')).status === 403 && !(await F('/servers')).d.servers.some(x => x.id === 'cepalco'));
+  check('new account: is not listed as a CEPALCO member', !(await N('/users')).d.users.some(u => u.username === 'fresh1'));
+  check('new account: wrong passkey is refused', (await F('/servers/join', 'POST', { code: 'ZZZZZZZZ' })).status === 404);
+  const dk = (await N('/servers')).d.servers[0].codes;
+  check('CEPALCO has 3 passkeys too (renewable per position)', (await N('/servers/cepalco/invite', 'POST', { role: 'host' })).status === 200 && (await N('/servers')).d.servers[0].codes.host.length === 8);
+  const dk2 = (await N('/servers')).d.servers[0].codes;
+  check('new account: the CEPALCO Supervisor passkey joins CEPALCO as Supervisor', (await F('/servers/join', 'POST', { code: dk2.host })).d.role === 'host' && (await F('/me')).d.user.role === 'host' && (await N('/users')).d.users.some(u => u.username === 'fresh1'));
 }
 
 console.log('Cross-server calendar');
