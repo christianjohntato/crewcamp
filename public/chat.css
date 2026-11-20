@@ -96,9 +96,9 @@ body.cw-drag{user-select:none;-webkit-user-select:none;cursor:grabbing}
 
 /* ---- phones: bottom sheet, like CrewCamp's dialogs ---- */
 @media(max-width:700px){
-  :root{--cw-m-bottom:106px}   /* gap between the screen bottom and the chat's bottom edge on phones = level of the calendar's lowest row of boxes on a ~844 px phone; clears the Netlify badge. Tune here. */
+  :root{--cw-m-bottom:127px}   /* gap between the bottom of the screen and the chat's bottom edge on phones: level with the bottom of the calendar's lowest row of boxes (measured on a real Android phone) and 74 px above the Netlify badge. Tune here. */
   .cw,.cwf{--cw-lift:calc(var(--cw-m-bottom) - 14px)}   /* the round "💬 Group chat" button + the DM dock */
-  .cw{--cw-h:min(78dvh,600px,calc(100dvh - var(--cw-m-bottom) - var(--safe-b) - 16px))}
+  .cw{--cw-h:min(78dvh,600px,calc(100dvh - var(--cw-m-bottom) - var(--safe-b) - 36px))}
   .cw-win,.cw-win.moved,.cw-mem{left:0;right:0;bottom:calc(var(--cw-m-bottom) + var(--safe-b));top:auto;width:auto;height:var(--cw-h);border-radius:22px 22px 14px 14px}
   .cw-mem{z-index:46;padding:14px 8px calc(12px + var(--safe-b))}
   .cw-form{padding-bottom:10px}
